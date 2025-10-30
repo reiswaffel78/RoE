@@ -20,15 +20,13 @@ import { useServiceWorker } from './hooks/useServiceWorker';
 import DevMenu from './components/DevMenu';
 
 const App: React.FC = () => {
-    const { currentEvent, lastUpdate, actions } = useGameStore(state => ({
+    const { currentEvent, offlineReport, actions } = useGameStore(state => ({
         currentEvent: state.currentEvent,
-        lastUpdate: state.lastUpdate,
+        offlineReport: state.offlineReport,
         actions: state.actions,
     }));
 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const [showOfflineProgress, setShowOfflineProgress] = useState(false);
-    const [offlineSeconds, setOfflineSeconds] = useState(0);
     const [isDevMenuOpen, setIsDevMenuOpen] = useState(false);
 
     const { isUpdateAvailable, reloadAndUpdate } = useServiceWorker();
@@ -37,17 +35,6 @@ const App: React.FC = () => {
     useGameLoop(() => {
         actions.tick(1); // Tick every second
     }, 1000);
-
-    // Offline progress modal
-    useEffect(() => {
-        const now = Date.now();
-        const secondsOffline = Math.floor((now - lastUpdate) / 1000);
-        if (secondsOffline > 10) {
-            setOfflineSeconds(secondsOffline);
-            setShowOfflineProgress(true);
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // Run only once on mount
 
     // Dev menu listener
     useEffect(() => {
@@ -61,7 +48,7 @@ const App: React.FC = () => {
     }, []);
 
     return (
-        <>
+        <React.Suspense fallback="Loading...">
             <PixiBackground />
             <div className="bg-slate-950 text-slate-100 min-h-screen font-sans relative z-10">
                 <TopBar onSettingsClick={() => setIsSettingsOpen(true)} />
@@ -81,11 +68,11 @@ const App: React.FC = () => {
                 </main>
                 {currentEvent && <EventModal event={currentEvent} />}
                 {isSettingsOpen && <Settings onClose={() => setIsSettingsOpen(false)} />}
-                {showOfflineProgress && <OfflineProgressModal secondsOffline={offlineSeconds} onClose={() => setShowOfflineProgress(false)} />}
+                {offlineReport && <OfflineProgressModal report={offlineReport} onClose={actions.clearOfflineReport} />}
                 {isUpdateAvailable && <UpdateToast onUpdate={reloadAndUpdate} />}
                 {isDevMenuOpen && <DevMenu onClose={() => setIsDevMenuOpen(false)} />}
             </div>
-        </>
+        </React.Suspense>
     );
 };
 

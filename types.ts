@@ -63,6 +63,11 @@ export interface PrestigeState {
     pendingPoints: number;
 }
 
+export interface OfflineReport {
+    secondsOffline: number;
+    chiGained: number;
+}
+
 export interface GameState {
     chi: number;
     balance: number; // 0 (physical) to 100 (ethereal)
@@ -78,6 +83,7 @@ export interface GameState {
     currentEvent: GameEvent | null;
     totalChi: number;
     playTime: number; // in seconds
+    offlineReport: OfflineReport | null;
 }
 
 // Making actions a separate interface for the store
@@ -90,6 +96,7 @@ export interface GameActions {
     importState: (newState: GameState) => void;
     reset: () => void;
     prestige: () => void;
+    clearOfflineReport: () => void;
     // Dev actions
     addChi: (amount: number) => void;
 }

@@ -1,5 +1,4 @@
 // store/gameStore.ts
-// FIX: Use named import for create from zustand v4
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { GameState, GameStore } from '../types';
@@ -87,6 +86,9 @@ export const useGameStore = create<GameStore>()(
                         log: [...baseState.log, `You have prestiged, gaining wisdom from the past.`]
                     });
                 },
+                clearOfflineReport: () => {
+                    set({ offlineReport: null });
+                },
                 // Dev actions
                 addChi: (amount: number) => {
                     set(state => ({ chi: state.chi + amount, totalChi: state.totalChi + amount }));
@@ -95,26 +97,39 @@ export const useGameStore = create<GameStore>()(
         }),
         {
             name: SAVE_KEY,
-            // Only store the state, not the actions
             partialize: ({ actions, ...rest }) => rest,
-            // FIX: Replaced deprecated `onRehydrate` with `onFinishHydration` and implemented correct logic
-            onFinishHydration: () => {
-                console.log("Rehydrating state finished.");
-                const state = useGameStore.getState();
-                // Handle offline progress on load
-                const lastUpdate = state?.lastUpdate ?? Date.now();
+            // FIX: Replaced incorrect `onFinishHydration` with `onRehydrateStorage`.
+            // The inner callback runs after hydration is complete, allowing for offline progress calculation.
+            onRehydrateStorage: () => (hydratedState, error) => {
+                if (error) {
+                    console.error("Failed to hydrate state:", error);
+                    return;
+                }
+                if (!hydratedState) {
+                    return;
+                }
+
                 const now = Date.now();
+                // lastUpdate is from the persisted state.
+                const lastUpdate = hydratedState.lastUpdate ?? now;
                 const secondsOffline = Math.floor((now - lastUpdate) / 1000);
                 
-                if (secondsOffline > 10) { // Only calculate for >10s offline
-                    console.log(`Offline for ${secondsOffline} seconds.`);
-                    let offlineState = { ...state };
+                if (secondsOffline > 10) {
+                    const stateBefore = hydratedState;
+                    
                     // Cap offline time to 24 hours to prevent exploitation
                     const cappedSeconds = Math.min(secondsOffline, 24 * 60 * 60); 
-                    offlineState = tick(offlineState, cappedSeconds);
-                    
-                    // Set the rehydrated state with offline progress applied
-                    useGameStore.setState({ ...offlineState, lastUpdate: now });
+                    const stateAfter = tick(stateBefore, cappedSeconds);
+                    const chiGained = stateAfter.chi - stateBefore.chi;
+
+                    if (chiGained > 0) {
+                        const report = { secondsOffline: cappedSeconds, chiGained };
+                        // FIX: Use `useGameStore.setState` to update the store post-hydration.
+                        useGameStore.setState({ ...stateAfter, lastUpdate: now, offlineReport: report });
+                    } else {
+                        // FIX: Use `useGameStore.setState` to update the store post-hydration.
+                        useGameStore.setState({ lastUpdate: now });
+                    }
                 }
             },
         }

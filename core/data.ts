@@ -57,4 +57,5 @@ export const getInitialState = (): GameState => ({
     currentEvent: null,
     totalChi: 10,
     playTime: 0,
+    offlineReport: null,
 });

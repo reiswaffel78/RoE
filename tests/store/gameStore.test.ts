@@ -55,14 +55,17 @@ describe('gameStore persistence and offline progress', () => {
         initialState.lastUpdate = oneHourAgo;
         initialState.plants.p1.level = 5; // Give some CPS
 
-        // Manually simulate the onFinishHydration logic
-        const onFinishHydration = useGameStore.persist.getOptions().onFinishHydration;
-        if (onFinishHydration) {
+        // FIX: Manually simulate the onRehydrateStorage logic
+        const onRehydrateStorage = useGameStore.persist.getOptions().onRehydrateStorage;
+        if (onRehydrateStorage) {
             // Manually set state to simulate hydration before the callback
             useGameStore.setState(initialState);
-            onFinishHydration(initialState as any);
+            const onFinish = onRehydrateStorage();
+            if (onFinish) {
+                onFinish(useGameStore.getState(), undefined);
+            }
         } else {
-            throw new Error('onFinishHydration function not found on persist options');
+            throw new Error('onRehydrateStorage function not found on persist options');
         }
 
         const state = useGameStore.getState();
@@ -86,21 +89,23 @@ describe('gameStore persistence and offline progress', () => {
         
         // --- Calculate expected gain for 24 hours ---
         let expectedState = { ...initialState };
-        // Tick function requires the full state
         // FIX: Remove incorrect assignment. The `tick` function does not require actions.
         const { tick } = await import('../../core/gameLogic');
         const stateAfter24h = tick(expectedState, 24 * 3600);
         const expectedChiGain = stateAfter24h.chi - initialChi;
         // --- End calculation ---
 
-        // Manually simulate the onFinishHydration logic
-        const onFinishHydration = useGameStore.persist.getOptions().onFinishHydration;
-        if (onFinishHydration) {
+        // FIX: Manually simulate the onRehydrateStorage logic
+        const onRehydrateStorage = useGameStore.persist.getOptions().onRehydrateStorage;
+        if (onRehydrateStorage) {
             // Manually set state to simulate hydration before the callback
             useGameStore.setState(initialState);
-            onFinishHydration(initialState as any);
+            const onFinish = onRehydrateStorage();
+            if (onFinish) {
+                onFinish(useGameStore.getState(), undefined);
+            }
         } else {
-            throw new Error('onFinishHydration function not found on persist options');
+            throw new Error('onRehydrateStorage function not found on persist options');
         }
 
         const finalState = useGameStore.getState();

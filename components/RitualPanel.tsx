@@ -4,7 +4,10 @@ import { useGameStore } from '../store/gameStore';
 import { formatNumber } from '../utils/format';
 
 const RitualPanel: React.FC = () => {
-    const { rituals, chi, actions, ...state } = useGameStore(state => state);
+    // FIX: Destructuring with a rest parameter was creating an incomplete state object.
+    // Get the full state object first, then destructure needed properties.
+    const state = useGameStore(state => state);
+    const { rituals, chi, actions } = state;
 
     return (
         <div className="bg-slate-800/50 p-4 rounded-lg shadow-md">
