@@ -1,56 +1,91 @@
-
-import React from 'react';
+// App.tsx
+import React, { useState, useEffect } from 'react';
 import { useGameStore } from './store/gameStore';
 import { useGameLoop } from './hooks/useGameLoop';
-import { logger } from './services/logger';
-import PixiBackground from './components/PixiBackground';
 import TopBar from './components/TopBar';
 import PlantPanel from './components/PlantPanel';
-import { Tooltip } from 'react-tooltip';
 import RitualPanel from './components/RitualPanel';
-import UpgradeShop from './components/UpgradeShop';
-import ZoneMap from './components/ZoneMap';
-import SpiritDialog from './components/SpiritDialog';
 import EventLog from './components/EventLog';
+import ZoneMap from './components/ZoneMap';
+import UpgradeShop from './components/UpgradeShop';
+import EventModal from './components/EventModal';
+import Settings from './components/Settings';
+import SpiritDialog from './components/SpiritDialog';
+import PixiBackground from './components/PixiBackground';
+import OfflineProgressModal from './components/OfflineProgressModal';
+import AchievementsPanel from './components/AchievementsPanel';
+import PrestigePanel from './components/PrestigePanel';
+import UpdateToast from './components/UpdateToast';
+import { useServiceWorker } from './hooks/useServiceWorker';
+import DevMenu from './components/DevMenu';
 
 const App: React.FC = () => {
-    const tick = useGameStore(state => state.tick);
-    
-    // Main game loop, 1 tick per second
-    useGameLoop(tick, 1000);
+    const { currentEvent, lastUpdate, actions } = useGameStore(state => ({
+        currentEvent: state.currentEvent,
+        lastUpdate: state.lastUpdate,
+        actions: state.actions,
+    }));
+
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [showOfflineProgress, setShowOfflineProgress] = useState(false);
+    const [offlineSeconds, setOfflineSeconds] = useState(0);
+    const [isDevMenuOpen, setIsDevMenuOpen] = useState(false);
+
+    const { isUpdateAvailable, reloadAndUpdate } = useServiceWorker();
+
+    // Game loop
+    useGameLoop(() => {
+        actions.tick(1); // Tick every second
+    }, 1000);
+
+    // Offline progress modal
+    useEffect(() => {
+        const now = Date.now();
+        const secondsOffline = Math.floor((now - lastUpdate) / 1000);
+        if (secondsOffline > 10) {
+            setOfflineSeconds(secondsOffline);
+            setShowOfflineProgress(true);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Run only once on mount
+
+    // Dev menu listener
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === '`' && e.ctrlKey) {
+                setIsDevMenuOpen(prev => !prev);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     return (
-        <div className="bg-slate-900 font-sans text-slate-200 min-h-screen">
+        <>
             <PixiBackground />
-            
-            <div className="relative z-10 flex flex-col min-h-screen">
-                <TopBar />
-                
-                <main className="flex-grow p-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 max-w-7xl mx-auto">
-                        {/* Left Column */}
-                        <div className="lg:col-span-2 space-y-6">
-                            <PlantPanel />
-                            <RitualPanel />
-                            <UpgradeShop />
-                        </div>
-                        
-                        {/* Right Column */}
-                        <div className="lg:col-span-3 space-y-6">
-                            <ZoneMap />
-                            <SpiritDialog />
-                        </div>
+            <div className="bg-slate-950 text-slate-100 min-h-screen font-sans relative z-10">
+                <TopBar onSettingsClick={() => setIsSettingsOpen(true)} />
+                <main className="container mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2 space-y-4">
+                        <PlantPanel />
+                        <UpgradeShop />
+                        <AchievementsPanel />
                     </div>
-
-                    {/* Event Log at the bottom */}
-                    <div className="max-w-7xl mx-auto mt-6">
+                    <div className="space-y-4">
+                        <RitualPanel />
+                        <ZoneMap />
+                        <PrestigePanel />
+                        <SpiritDialog />
                         <EventLog />
                     </div>
                 </main>
+                {currentEvent && <EventModal event={currentEvent} />}
+                {isSettingsOpen && <Settings onClose={() => setIsSettingsOpen(false)} />}
+                {showOfflineProgress && <OfflineProgressModal secondsOffline={offlineSeconds} onClose={() => setShowOfflineProgress(false)} />}
+                {isUpdateAvailable && <UpdateToast onUpdate={reloadAndUpdate} />}
+                {isDevMenuOpen && <DevMenu onClose={() => setIsDevMenuOpen(false)} />}
             </div>
-            
-            <Tooltip id="app-tooltip" />
-        </div>
+        </>
     );
 };
 

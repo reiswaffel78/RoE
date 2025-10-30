@@ -1,21 +1,27 @@
-
-import React from 'react';
+// components/EventLog.tsx
+import React, { useRef, useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 
 const EventLog: React.FC = () => {
-  const logs = useGameStore(state => state.logs);
+    const log = useGameStore(state => state.log);
+    const logContainerRef = useRef<HTMLDivElement>(null);
 
-  return (
-    <div className="h-24 bg-slate-900/80 backdrop-blur-sm rounded-lg p-3 text-sm text-slate-400 overflow-hidden ring-1 ring-slate-700/50">
-      <div className="flex flex-col-reverse">
-        {logs.map((log, index) => (
-          <p key={index} className={`transition-opacity duration-500 ${index === 0 ? 'opacity-100 text-slate-200' : 'opacity-60'}`}>
-            {log}
-          </p>
-        ))}
-      </div>
-    </div>
-  );
+    useEffect(() => {
+        if (logContainerRef.current) {
+            logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+        }
+    }, [log]);
+
+    return (
+        <div className="bg-slate-800/50 p-4 rounded-lg shadow-md h-64 flex flex-col">
+            <h2 className="text-lg font-semibold mb-2 text-slate-200">Garden Log</h2>
+            <div ref={logContainerRef} className="flex-grow overflow-y-auto pr-2">
+                {log.map((entry, index) => (
+                    <p key={index} className="text-sm text-slate-400 mb-1">{entry}</p>
+                ))}
+            </div>
+        </div>
+    );
 };
 
 export default EventLog;

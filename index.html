@@ -1,37 +1,20 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Roots of the Earth</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    #pixi-canvas {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: -1; /* Ensures it's in the background */
-    }
-  </style>
-</head>
-<body>
-  <div id="root"></div>
-  <script type="importmap">
+<script type="importmap">
 {
   "imports": {
+    "@pixi/particle-emitter": "https://aistudiocdn.com/@pixi/particle-emitter@^5.0.8",
+    "howler": "https://aistudiocdn.com/howler@^2.2.4",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.28.0",
     "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "pixi.js": "https://aistudiocdn.com/pixi.js@^8.14.0",
     "zustand": "https://aistudiocdn.com/zustand@^5.0.8",
     "zustand/": "https://aistudiocdn.com/zustand@^5.0.8/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.24.0",
-    "pixi.js": "https://aistudiocdn.com/pixi.js@^8.2.5",
-    "react-tooltip": "https://aistudiocdn.com/react-tooltip@^5.30.0"
+    "i18next": "https://aistudiocdn.com/i18next@^25.6.0",
+    "react-i18next": "https://aistudiocdn.com/react-i18next@^16.2.2",
+    "i18next-browser-languagedetector": "https://aistudiocdn.com/i18next-browser-languagedetector@^8.2.0",
+    "vitest": "https://aistudiocdn.com/vitest@^4.0.5"
   }
 }
 </script>
-  <script type="module" src="/index.tsx"></script>
-</body>
-</html>
+full contents of index.html

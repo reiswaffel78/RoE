@@ -1,91 +1,100 @@
 // types.ts
 
-export type Plant = {
+export interface Plant {
+    id: string;
+    name: string;
+    description: string;
+    level: number;
+    costBase: number;
+    costScaling: number;
+    cpsBase: number; // Chi Per Second
+    type: 'physical' | 'ethereal';
+}
+
+export interface Ritual {
     id: string;
     name: string;
     description: string;
     cost: number;
-    baseChi: number;
-};
+    effect: (state: GameState) => Partial<GameState>;
+    isUnlocked: (state: GameState) => boolean;
+}
 
-export type OwnedPlant = {
+export interface Zone {
     id: string;
-    level: number;
-    baseChi: number;
-};
+    name: string;
+    description: string;
+    unlockCondition: (state: GameState) => boolean;
+}
 
-// FIX: Add missing AwarenessLevel type to resolve errors in core/environmentalSystem.ts and render/pixi/particles.ts.
-export type AwarenessLevel = 'physical' | 'ethereal' | 'astral';
-
-// FIX: Add missing Weather type to resolve errors in render/pixi/particles.ts and core/events.ts.
-export type Weather = string;
-
-// FIX: Add missing GameEvent and GameEventChoice types to resolve errors in core/events.ts and components/EventModal.tsx.
-export type GameEventChoice = {
-    id: string;
+export interface GameEventChoice {
     text: string;
-};
+    effect: (state: GameState) => Partial<GameState>;
+}
 
-export type GameEvent = {
+export interface GameEvent {
     id: string;
     title: string;
     description: string;
-    cooldown: number;
-    weight: number;
-    conditions: {
-        requiredZoneId?: string;
-        requiredWeather?: Weather;
-        requiredMoonPhase?: string;
-        minBalance?: number;
-        maxBalance?: number;
-    };
+    trigger: (state: GameState) => boolean;
     choices: GameEventChoice[];
-};
+}
 
-export type Settings = {
-    volume: number;
-    sfx: boolean;
-    lowSpecMode: boolean;
-};
+export interface Achievement {
+    id: string;
+    name: string;
+    description: string;
+    unlocked: boolean;
+    check: (state: GameState) => boolean;
+}
+
+export interface Upgrade {
+    id: string;
+    name: string;
+    description: string;
+    cost: number;
+    unlocked: boolean;
+    effect: (state: GameState) => Partial<GameState>;
+    isUnlocked: (state: GameState) => boolean;
+}
+
+export interface PrestigeState {
+    points: number;
+    pendingPoints: number;
+}
 
 export interface GameState {
     chi: number;
-    chiPerSecond: number;
-    plants: Record<string, OwnedPlant>;
-    lastUpdate: number;
-
-    // FIX: Add numerous missing properties to GameState to satisfy type usage across various components and fix compilation errors.
-    harmony: number;
-    harmonyPerSecond: number;
-    balance: number;
-    awareness: AwarenessLevel;
-    unlockedZones: string[];
+    balance: number; // 0 (physical) to 100 (ethereal)
+    plants: Record<string, Plant>;
+    rituals: Record<string, Ritual>;
+    zones: Record<string, Zone>;
+    upgrades: Record<string, Upgrade>;
+    achievements: Record<string, Achievement>;
+    prestige: PrestigeState;
     currentZoneId: string;
-    weather: Weather;
-    moonPhase: string;
-    eventHistory: Record<string, number>;
-    logs: string[];
-    settings: Settings;
-    ownedUpgrades: Record<string, number>;
-    ritualCooldowns: Record<string, number>;
-    activeRituals: {id: string}[];
-    spiritRelationships: Record<string, number>;
+    log: string[];
+    lastUpdate: number;
     currentEvent: GameEvent | null;
-
-    // Actions
-    tick: () => void;
-    buyPlant: (plant: Plant) => void;
-    addChi: (amount: number) => void;
-
-    // FIX: Add missing actions to GameState interface.
-    importState: (newState: Partial<GameState>) => void;
-    addLog: (message: string) => void;
-    levelUpPlant: (plantId: string, cost: number) => void;
-    buyUpgrade: (upgrade: any) => void;
-    startRitual: (ritual: any) => void;
-    changeZone: (zoneId: string) => void;
-    resolveEvent: (choice: GameEventChoice) => void;
-    makeOffering: (spiritId: string, offering: any, affinityBonus: number) => void;
-    updateSettings: (newSettings: Partial<Settings>) => void;
-    resetGame: () => void;
+    totalChi: number;
+    playTime: number; // in seconds
 }
+
+// Making actions a separate interface for the store
+export interface GameActions {
+    tick: (deltaTime: number) => void;
+    levelUpPlant: (plantId: string) => void;
+    performRitual: (ritualId: string) => void;
+    changeZone: (zoneId: string) => void;
+    resolveEvent: (choiceIndex: number) => void;
+    importState: (newState: GameState) => void;
+    reset: () => void;
+    prestige: () => void;
+    // Dev actions
+    addChi: (amount: number) => void;
+}
+
+// The complete store shape
+export type GameStore = GameState & {
+    actions: GameActions;
+};

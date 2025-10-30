@@ -1,107 +1,94 @@
 // render/pixi/particles.ts
-
-// Replaced modular imports with a single namespace import for better CDN compatibility.
 import * as PIXI from 'pixi.js';
-import { AwarenessLevel, Weather } from '../../types';
+import { Emitter, upgradeConfig } from '@pixi/particle-emitter';
+import { logger } from '../../services/logger';
 
-// Updated the Particle type to use the PIXI namespace.
-type Particle = PIXI.Graphics & {
-    vx: number;
-    vy: number;
-    life: number;
-    maxLife: number;
+
+// A simple particle texture
+const createParticleTexture = (app: PIXI.Application) => {
+    const graphics = new PIXI.Graphics();
+    graphics.beginFill(0x99f6e4); // emerald-200
+    graphics.drawCircle(0, 0, 4);
+    graphics.endFill();
+    return app.renderer.generateTexture(graphics);
 };
 
-export class ParticleSystem {
-    // Updated types to use the PIXI namespace.
-    private app: PIXI.Application;
-    private container: PIXI.Container;
-    private particles: Particle[] = [];
-    private tickerCallback: (ticker: PIXI.Ticker) => void;
-    private currentEffect: string = 'none';
-
-    constructor(app: PIXI.Application) {
-        this.app = app;
-        this.container = new PIXI.Container();
-        this.app.stage.addChild(this.container);
-
-        this.tickerCallback = (ticker: PIXI.Ticker) => this.update(ticker.deltaMS / 1000);
-        this.app.ticker.add(this.tickerCallback);
+export const createParticleEmitter = (stage: PIXI.Container) => {
+    if (!(stage.parent instanceof PIXI.Application)) {
+        logger.warn("Could not create particle emitter: stage has no parent application.");
+        return;
     }
+    const app = stage.parent;
+    const particleTexture = createParticleTexture(app);
 
-    public destroy() {
-        this.app.ticker.remove(this.tickerCallback);
-        this.container.destroy({ children: true });
-    }
-    
-    public setVisible(visible: boolean) {
-        this.container.visible = visible;
-    }
-
-    public setEffect(awareness: AwarenessLevel, weather: Weather) {
-        const newEffect = `${awareness}-${weather}`;
-        if (newEffect === this.currentEffect) return;
-        
-        this.currentEffect = newEffect;
-        this.particles.forEach(p => p.destroy());
-        this.particles = [];
-
-        if (awareness === 'ethereal') {
-            this.createAurora(50);
-        } else if (awareness === 'physical') {
-            this.createPollen(100);
-        }
-    }
-
-    private createPollen(count: number) {
-        for (let i = 0; i < count; i++) {
-            const p = new PIXI.Graphics() as Particle;
-            p.circle(0, 0, Math.random() * 1.5 + 0.5);
-            p.fill({ color: 0xffff00, alpha: Math.random() * 0.5 + 0.3 });
-            p.x = Math.random() * this.app.screen.width;
-            p.y = Math.random() * this.app.screen.height;
-            p.vx = (Math.random() - 0.5) * 10;
-            p.vy = (Math.random() - 0.5) * 10;
-            p.life = p.maxLife = Math.random() * 5 + 2;
-            this.particles.push(p);
-            this.container.addChild(p);
-        }
-    }
-    
-    private createAurora(count: number) {
-        for (let i = 0; i < count; i++) {
-            const p = new PIXI.Graphics() as Particle;
-            p.circle(0, 0, Math.random() * 30 + 10)
-            p.fill({ color: [0x8a2be2, 0x00ff7f, 0x40e0d0][i % 3], alpha: Math.random() * 0.2 + 0.1 });
-            p.x = Math.random() * this.app.screen.width;
-            p.y = Math.random() * this.app.screen.height;
-            p.vx = (Math.random() - 0.5) * 20;
-            p.vy = (Math.random() - 0.5) * 5;
-            p.life = p.maxLife = Math.random() * 8 + 4;
-            this.particles.push(p);
-            this.container.addChild(p);
-        }
-    }
-
-    private update(delta: number) {
-        if (!this.container.visible) return;
-
-        for (const p of this.particles) {
-            p.x += p.vx * delta;
-            p.y += p.vy * delta;
-            p.life -= delta;
-
-            p.alpha = (p.life / p.maxLife) * 0.7;
-
-            if (p.life <= 0) {
-                 p.x = Math.random() * this.app.screen.width;
-                 p.y = this.app.screen.height + 20;
-                 p.life = p.maxLife;
-            } else if (p.x < -20) {
-                p.x = this.app.screen.width + 20;
-            } else if (p.x > this.app.screen.width + 20) {
-                p.x = -20;
+    const emitter = new Emitter(
+        stage,
+        upgradeConfig({
+            "alpha": {
+                "start": 0.6,
+                "end": 0
+            },
+            "scale": {
+                "start": 0.2,
+                "end": 0.5,
+                "minimumScaleMultiplier": 1
+            },
+            "color": {
+                "start": "#a7f3d0",
+                "end": "#34d399"
+            },
+            "speed": {
+                "start": 50,
+                "end": 10,
+                "minimumSpeedMultiplier": 1
+            },
+            "acceleration": {
+                "x": 0,
+                "y": -20
+            },
+            "maxSpeed": 0,
+            "startRotation": {
+                "min": 0,
+                "max": 360
+            },
+            "noRotation": false,
+            "rotationSpeed": {
+                "min": 0,
+                "max": 0
+            },
+            "lifetime": {
+                "min": 4,
+                "max": 8
+            },
+            "blendMode": "normal",
+            "frequency": 0.05,
+            "emitterLifetime": -1,
+            "maxParticles": 50,
+            "pos": {
+                "x": 0,
+                "y": 0
+            },
+            "addAtBack": false,
+            "spawnType": "rect",
+            "spawnRect": {
+                "x": 0,
+                "y": window.innerHeight,
+                "w": window.innerWidth,
+                "h": 10
             }
-        }
-    }
-}
+        }, [particleTexture])
+    );
+    
+    let elapsed = Date.now();
+
+    const update = () => {
+        const now = Date.now();
+        emitter.update((now - elapsed) * 0.001);
+        elapsed = now;
+    };
+    
+    emitter.emit = true;
+    app.ticker.add(update);
+    
+    return emitter;
+};

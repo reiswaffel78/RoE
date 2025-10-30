@@ -1,128 +1,122 @@
-
+// store/gameStore.ts
+// FIX: Use named import for create from zustand v4
 import { create } from 'zustand';
-import { GameState, Plant, Settings } from '../types';
-import { calculateChiPerSecond } from '../core/gameLogic';
-import { logger } from '../services/logger';
+import { persist } from 'zustand/middleware';
+import { GameState, GameStore } from '../types';
+import { getInitialState } from '../core/data';
+import { tick } from '../core/gameLogic';
 
-// A minimal getInitialState for the basic version of the game.
-const getInitialState = (): Omit<GameState, 'tick' | 'buyPlant' | 'addChi' | 'importState' | 'addLog' | 'levelUpPlant' | 'buyUpgrade' | 'startRitual' | 'changeZone' | 'resolveEvent' | 'makeOffering' | 'updateSettings' | 'resetGame'> => ({
-    chi: 10,
-    chiPerSecond: 0,
-    harmony: 0,
-    harmonyPerSecond: 0,
-    plants: {},
-    lastUpdate: Date.now(),
-    balance: 50,
-    awareness: 'physical',
-    unlockedZones: ['meadow'],
-    currentZoneId: 'meadow',
-    weather: 'clear',
-    moonPhase: 'new',
-    eventHistory: {},
-    logs: ["The journey begins."],
-    settings: {
-        volume: 0.5,
-        sfx: true,
-        lowSpecMode: false,
-    },
-    ownedUpgrades: {},
-    ritualCooldowns: {},
-    activeRituals: [],
-    spiritRelationships: {},
-    currentEvent: null,
-});
+const SAVE_KEY = 'zen-garden-save';
 
-export const useGameStore = create<GameState>()(
-    (set) => ({
-        ...getInitialState(),
-
-        tick: () => {
-            set(state => {
-                const now = Date.now();
-                const elapsedSeconds = (now - state.lastUpdate) / 1000;
-                if (elapsedSeconds <= 0) return {};
-
-                const chiPerSecond = calculateChiPerSecond(state.plants);
-                const chiGained = chiPerSecond * elapsedSeconds;
-                const newChi = state.chi + chiGained;
-                
-                return {
-                    chi: newChi,
-                    chiPerSecond,
-                    lastUpdate: now,
-                };
-            });
-        },
-
-        addChi: (amount) => {
-            set(state => ({ chi: state.chi + amount }));
-        },
-        
-        buyPlant: (plant: Plant) => {
-            set(state => {
-                const ownedPlant = state.plants[plant.id];
-                if (ownedPlant || state.chi < plant.cost) return {};
-
-                return {
-                    chi: state.chi - plant.cost,
-                    plants: {
-                        ...state.plants,
-                        [plant.id]: {
-                            id: plant.id,
-                            level: 1,
-                            baseChi: plant.baseChi
-                        }
-                    },
-                };
-            });
-        },
-
-        levelUpPlant: (plantId: string, cost: number) => {
-            set(state => {
-                const plant = state.plants[plantId];
-                if (!plant || state.chi < cost) return {};
-
-                return {
-                    chi: state.chi - cost,
-                    plants: {
-                        ...state.plants,
-                        [plantId]: {
-                            ...plant,
-                            level: plant.level + 1,
-                        }
+export const useGameStore = create<GameStore>()(
+    persist(
+        (set, get) => ({
+            ...getInitialState(),
+            actions: {
+                tick: (deltaTime: number) => {
+                    set(state => tick(state, deltaTime));
+                },
+                levelUpPlant: (plantId: string) => {
+                    const state = get();
+                    const plant = state.plants[plantId];
+                    if (!plant) return;
+                    
+                    const cost = plant.costBase * Math.pow(plant.costScaling, plant.level);
+                    if (state.chi >= cost) {
+                        set(s => ({
+                            chi: s.chi - cost,
+                            plants: {
+                                ...s.plants,
+                                [plantId]: { ...plant, level: plant.level + 1 },
+                            },
+                        }));
                     }
-                };
-            });
-        },
+                },
+                performRitual: (ritualId: string) => {
+                    const state = get();
+                    const ritual = state.rituals[ritualId];
+                    if (!ritual || state.chi < ritual.cost) return;
 
-        addLog: (message: string) => {
-            set(state => ({
-                logs: [message, ...state.logs.slice(0, 4)]
-            }));
-        },
+                    const changes = ritual.effect(state);
+                    set(s => ({
+                        ...changes,
+                        chi: s.chi - ritual.cost,
+                    }));
+                },
+                changeZone: (zoneId: string) => {
+                    const state = get();
+                    if (state.zones[zoneId] && state.zones[zoneId].unlockCondition(state)) {
+                        set({ currentZoneId: zoneId, log: [...state.log, `You moved to the ${state.zones[zoneId].name}.`] });
+                    }
+                },
+                resolveEvent: (choiceIndex: number) => {
+                    const state = get();
+                    const event = state.currentEvent;
+                    if (!event || !event.choices[choiceIndex]) return;
 
-        updateSettings: (newSettings: Partial<Settings>) => {
-            set(state => ({
-                settings: { ...state.settings, ...newSettings }
-            }));
-        },
-        
-        resetGame: () => {
-            set(getInitialState());
-        },
+                    const choice = event.choices[choiceIndex];
+                    const changes = choice.effect(state);
+                    set(s => ({
+                        ...changes,
+                        currentEvent: null, // Event is resolved
+                    }));
+                },
+                importState: (newState: GameState) => {
+                    // Perform migration/validation if necessary
+                    set({ ...newState, lastUpdate: Date.now() });
+                },
+                reset: () => {
+                    if (window.confirm("Are you sure you want to reset all progress? This cannot be undone.")) {
+                        set(getInitialState());
+                    }
+                },
+                prestige: () => {
+                    const state = get();
+                    if (state.prestige.pendingPoints <= 0) return;
+                    
+                    const newPoints = state.prestige.points + state.prestige.pendingPoints;
+                    const baseState = getInitialState();
 
-        importState: (newState: Partial<GameState>) => {
-            set(state => ({...state, ...newState, lastUpdate: Date.now() }));
-        },
-
-        // --- Placeholder Actions ---
-        buyUpgrade: () => logger.warn("buyUpgrade action is not implemented yet."),
-        startRitual: () => logger.warn("startRitual action is not implemented yet."),
-        changeZone: () => logger.warn("changeZone action is not implemented yet."),
-        resolveEvent: () => logger.warn("resolveEvent action is not implemented yet."),
-        makeOffering: () => logger.warn("makeOffering action is not implemented yet."),
-
-    })
+                    set({
+                        ...baseState,
+                        prestige: {
+                            points: newPoints,
+                            pendingPoints: 0,
+                        },
+                        achievements: state.achievements, // Keep achievements
+                        log: [...baseState.log, `You have prestiged, gaining wisdom from the past.`]
+                    });
+                },
+                // Dev actions
+                addChi: (amount: number) => {
+                    set(state => ({ chi: state.chi + amount, totalChi: state.totalChi + amount }));
+                }
+            },
+        }),
+        {
+            name: SAVE_KEY,
+            // Only store the state, not the actions
+            partialize: ({ actions, ...rest }) => rest,
+            // FIX: Replaced deprecated `onRehydrate` with `onFinishHydration` and implemented correct logic
+            onFinishHydration: () => {
+                console.log("Rehydrating state finished.");
+                const state = useGameStore.getState();
+                // Handle offline progress on load
+                const lastUpdate = state?.lastUpdate ?? Date.now();
+                const now = Date.now();
+                const secondsOffline = Math.floor((now - lastUpdate) / 1000);
+                
+                if (secondsOffline > 10) { // Only calculate for >10s offline
+                    console.log(`Offline for ${secondsOffline} seconds.`);
+                    let offlineState = { ...state };
+                    // Cap offline time to 24 hours to prevent exploitation
+                    const cappedSeconds = Math.min(secondsOffline, 24 * 60 * 60); 
+                    offlineState = tick(offlineState, cappedSeconds);
+                    
+                    // Set the rehydrated state with offline progress applied
+                    useGameStore.setState({ ...offlineState, lastUpdate: now });
+                }
+            },
+        }
+    )
 );
-
-logger.info("gameStore: Zustand store created for full version.");

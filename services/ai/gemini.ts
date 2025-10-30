@@ -1,49 +1,51 @@
 // services/ai/gemini.ts
-
 import { GoogleGenAI } from "@google/genai";
 
-// Gracefully handle the case where process.env is not defined in the browser to prevent a startup crash.
-const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
-
-if (!apiKey) {
-    console.error("API_KEY environment variable is not set. Gemini API features will be disabled.");
-}
-
-// Only initialize the AI client if the API key is available.
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+// We assume process.env.API_KEY is available as per the guidelines.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 
 /**
- * Generates a creative description for a new plant based on its name and properties.
- * This is an example of how the Gemini API could be integrated.
+ * Generates a mystical, short description for a plant.
  * @param plantName The name of the plant.
- * @param theme A theme for the description (e.g., 'mystical', 'cosmic').
+ * @param theme A theme to guide the generation (e.g., 'ethereal', 'ancient').
  * @returns A promise that resolves to the generated description string.
  */
-export const generatePlantDescription = async (plantName: string, theme: string): Promise<string> => {
-    // If the AI client wasn't initialized, return a fallback description.
-    if (!ai) {
-        return "A plant with an aura of untapped potential.";
-    }
+export async function generatePlantDescription(plantName: string, theme: string): Promise<string> {
+    const prompt = `Generate a short, mystical description for a fantasy plant named "${plantName}". The theme is "${theme}". Keep it under 25 words.`;
 
     try {
-        const prompt = `Generate a short, creative, and mystical description for a plant in an idle game. The plant's name is "${plantName}" and its theme is "${theme}". The description should be one sentence long and fit into a game's UI.`;
-
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: "gemini-2.5-flash",
             contents: prompt,
         });
 
-        const text = response.text;
-        
-        if (text) {
-            // Basic cleanup
-            return text.trim().replace(/^"|"$/g, '');
-        } else {
-            return "A mysterious plant of unknown origin.";
-        }
+        return response.text.trim();
     } catch (error) {
-        console.error("Error generating plant description with Gemini API:", error);
-        // Fallback description
-        return "A plant with an aura of untapped potential.";
+        console.error("Error generating plant description:", error);
+        throw new Error("Failed to generate description from AI.");
     }
-};
+}
+
+/**
+ * Generates a message from the perspective of a garden spirit.
+ * @param gameStateSummary A string summarizing the current state of the garden.
+ * @returns A promise that resolves to the spirit's message.
+ */
+export async function generateSpiritMessage(gameStateSummary: string): Promise<string> {
+    const prompt = `The current state of the garden is: ${gameStateSummary}. 
+    Provide a short, cryptic, or encouraging message to the gardener. Keep it to one or two sentences.`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                systemInstruction: "You are a wise and ancient garden spirit. Your responses are short, mystical, and sometimes cryptic.",
+            }
+        });
+        return response.text.trim();
+    } catch (error) {
+        console.error("Error generating spirit message:", error);
+        throw new Error("The spirits are silent for now.");
+    }
+}
