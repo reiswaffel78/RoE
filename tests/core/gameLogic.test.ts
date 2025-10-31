@@ -1,6 +1,6 @@
 // tests/core/gameLogic.test.ts
 import { describe, it, expect } from 'vitest';
-import { tick } from '../../core/gameLogic';
+import { calculatePlantCost, tick } from '../../core/gameLogic';
 import { getInitialState } from '../../core/data';
 import type { GameState } from '../../types';
 
@@ -70,5 +70,31 @@ describe('gameLogic', () => {
         
         // 10 points = 10 * 0.1 = 100% bonus = 2x gain
         expect(prestigeChiGain).toBeCloseTo(noPrestigeChiGain * 2);
+    });
+
+
+    it('should ignore non-positive delta times', () => {
+        const state = getInitialState();
+        const result = tick(state, -5);
+        expect(result).toBe(state);
+    });
+
+    it('should process long delta times in chunks without losing progress', () => {
+        const state = getInitialState();
+        state.plants.p1.level = 5;
+
+        const short = tick(state, 60);
+        const long = tick(state, 120);
+
+        expect(long.playTime).toBeCloseTo(state.playTime + 120);
+        expect(long.chi).toBeGreaterThan(short.chi);
+    });
+
+    it('calculates plant cost from core helper', () => {
+        const state = getInitialState();
+        state.plants.p1.level = 3;
+        const plant = state.plants.p1;
+        const expectedCost = plant.costBase * Math.pow(plant.costScaling, plant.level);
+        expect(calculatePlantCost(plant)).toBeCloseTo(expectedCost);
     });
 });

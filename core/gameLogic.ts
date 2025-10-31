@@ -5,71 +5,156 @@ import { getZoneModifier } from './environmentalSystem';
 import { gameEvents } from './events';
 import { initialAchievements } from './data';
 
-/**
- * The main game loop logic.
- * @param state The current game state.
- * @param deltaTime The time in seconds since the last update.
- * @returns The new game state.
- */
-export const tick = (state: GameState, deltaTime: number): GameState => {
-    let newState = { ...state };
+const MAX_TICK_SECONDS = 60;
 
-    // 1. Calculate Modifiers
-    const balanceMods = getBalanceModifiers(newState);
-    const zoneMods = getZoneModifier(newState);
+const clampPositiveFinite = (value: number): number => {
+    if (!Number.isFinite(value) || value <= 0) {
+        return 0;
+    }
+    return value;
+};
 
-    // 2. Calculate Chi Per Second (CPS)
-    let totalCps = 0;
-    for (const plantId in newState.plants) {
-        const plant = newState.plants[plantId] as Plant;
-        if (plant.level > 0) {
-            let plantCps = plant.cpsBase * plant.level;
-            
-            // Apply modifiers
-            if (plant.type === 'physical') {
-                plantCps *= balanceMods.physicalBoost * zoneMods.physical;
-            } else {
-                plantCps *= balanceMods.etherealBoost * zoneMods.ethereal;
-            }
+const appendLogEntry = (state: GameState, log: string[], entry: string): string[] => {
+    if (log === state.log) {
+        return [...state.log, entry];
+    }
+    return [...log, entry];
+};
+
+const applySingleTick = (state: GameState, deltaSeconds: number): GameState => {
+    const balanceMods = getBalanceModifiers(state);
+    const zoneMods = getZoneModifier(state);
+
+    for (const plantId of Object.keys(state.plants)) {
+        const plant: Plant | undefined = state.plants[plantId];
+        if (!plant) {
+            continue;
+        }
+        const level = Math.max(0, Math.floor(plant.level));
+        if (level <= 0) {
+            continue;
+        }
+
+        let plantCps = plant.cpsBase * level;
+        if (plant.type === 'physical') {
+            plantCps *= balanceMods.physicalBoost * zoneMods.physical;
+        } else {
+            plantCps *= balanceMods.etherealBoost * zoneMods.ethereal;
+        }
+
+        if (Number.isFinite(plantCps) && plantCps > 0) {
             totalCps += plantCps;
         }
     }
     
-    // Prestige bonus (e.g. 10% per point)
-    const prestigeBonus = 1 + (newState.prestige.points * 0.1);
-    totalCps *= prestigeBonus;
+    totalCps *= 1 + state.prestige.points * 0.1;
+    if (!Number.isFinite(totalCps) || totalCps < 0) {
+        totalCps = 0;
+    }
+
+    const chiGained = totalCps * deltaSeconds;
+    const nextChi = Number.isFinite(chiGained) ? Math.max(0, state.chi + chiGained) : state.chi;
+    const nextTotalChi = Number.isFinite(chiGained) ? Math.max(0, state.totalChi + chiGained) : state.totalChi;
+    const nextPlayTime = state.playTime + deltaSeconds;
+
+    let log = state.log;
+    let currentEvent = state.currentEvent;
 
 
-    // 3. Update resources
-    const chiGained = totalCps * deltaTime;
-    newState.chi += chiGained;
-    newState.totalChi += chiGained;
-    newState.playTime += deltaTime;
+    const stateForChecks: GameState = {
+        ...state,
+        chi: nextChi,
+        totalChi: nextTotalChi,
+        playTime: nextPlayTime,
+        log,
+        currentEvent,
+    };
 
     // 4. Check for new events
-    if (!newState.currentEvent) {
+     if (!currentEvent) {
         for (const event of gameEvents) {
-            if (event.trigger(newState)) {
-                newState.currentEvent = event;
-                newState.log = [...newState.log, `A strange feeling comes over the garden...`];
-                break; // Only trigger one event per tick
+            try {
+                if (event.trigger(stateForChecks)) {
+                    currentEvent = event;
+                    log = appendLogEntry(state, log, 'A strange feeling comes over the garden...');
+                    break;
+                }
+            } catch {
+                // Defensive: ignore trigger failures
             }
         }
     }
 
-    // 5. Check for achievements
-    for (const achievementId in newState.achievements) {
-        const ach = newState.achievements[achievementId];
-        if (!ach.unlocked && initialAchievements[achievementId].check(newState)) {
-            ach.unlocked = true;
-            newState.log = [...newState.log, `Achievement Unlocked: ${ach.name}`];
+    let achievements = state.achievements;
+    for (const [achievementId, achievementState] of Object.entries(state.achievements)) {
+        if (!achievementState) {
+            continue;
+        }
+
+        const definition = initialAchievements[achievementId];
+        if (!definition) {
+            continue;
+        }
+
+        if (!achievementState.unlocked) {
+            let shouldUnlock = false;
+            try {
+                shouldUnlock = definition.check(stateForChecks);
+            } catch {
+                shouldUnlock = false;
+            }
+
+            if (shouldUnlock) {
+                if (achievements === state.achievements) {
+                    achievements = { ...state.achievements };
+                }
+                achievements[achievementId] = { ...achievementState, unlocked: true };
+                log = appendLogEntry(state, log, `Achievement Unlocked: ${achievementState.name}`);
+            }
         }
     }
+
+    const pendingPoints = Math.floor(Math.sqrt(nextTotalChi / 1e6));
+    const prestige = {
+        ...state.prestige,
+        pendingPoints: Number.isFinite(pendingPoints) && pendingPoints > 0 ? pendingPoints : 0,
+    };
+
+    return {
+        ...state,
+        chi: nextChi,
+        totalChi: nextTotalChi,
+        playTime: nextPlayTime,
+        log,
+        currentEvent,
+        achievements,
+        prestige,
+        lastUpdate: state.lastUpdate + deltaSeconds * 1000,
+    };
+};
+
+export const tick = (state: GameState, deltaTime: number): GameState => {
+    const safeDelta = clampPositiveFinite(deltaTime);
+    if (safeDelta === 0) {
+        return state;
+
+    }
     
-    // 6. Calculate pending prestige points
-    // Example formula: 1 point for every 1e6 total chi, sqrt scaling
-    newState.prestige.pendingPoints = Math.floor(Math.sqrt(newState.totalChi / 1e6));
+    let remaining = safeDelta;
+    let workingState = state;
+
+    while (remaining > 0) {
+        const step = Math.min(remaining, MAX_TICK_SECONDS);
+        workingState = applySingleTick(workingState, step);
+        remaining -= step;
+    }
+
+    return workingState;
+};
 
 
-    return newState;
+export const calculatePlantCost = (plant: Plant): number => {
+    const level = Math.max(0, Math.floor(plant.level));
+    const cost = plant.costBase * Math.pow(plant.costScaling, level);
+    return Number.isFinite(cost) && cost > 0 ? cost : plant.costBase;
 };

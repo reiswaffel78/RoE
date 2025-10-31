@@ -1,11 +1,25 @@
 // store/gameStore.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { GameState, GameStore } from '../types';
-import { getInitialState } from '../core/data';
-import { tick } from '../core/gameLogic';
+import { GameState, GameStore, OfflineReport } from '../types';
+import { getInitialState, normalizeState } from '../core/data';
+import { tick, calculatePlantCost } from '../core/gameLogic';
 
 const SAVE_KEY = 'zen-garden-save';
+const MIN_OFFLINE_SECONDS = 10;
+const OFFLINE_CAP_SECONDS = 24 * 60 * 60;
+
+const extractGameState = (state: GameStore): GameState => {
+    const { actions, ...gameState } = state;
+    return gameState;
+};
+
+const mergeOfflineReport = (state: GameStore, nextState: GameState, report: OfflineReport | null, timestamp: number): GameStore => ({
+    ...state,
+    ...nextState,
+    lastUpdate: timestamp,
+    offlineReport: report,
+});
 
 export const useGameStore = create<GameStore>()(
     persist(
@@ -13,56 +27,100 @@ export const useGameStore = create<GameStore>()(
             ...getInitialState(),
             actions: {
                 tick: (deltaTime: number) => {
-                    set(state => tick(state, deltaTime));
+                                        const now = Date.now();
+                    set(state => {
+                        const safeDelta = Number.isFinite(deltaTime) && deltaTime > 0 ? deltaTime : 0;
+                        if (safeDelta === 0) {
+                            return { ...state, lastUpdate: now };
+                        }
+
+                        const nextState = tick(extractGameState(state), safeDelta);
+                        return {
+                            ...state,
+                            ...nextState,
+                            lastUpdate: now,
+                        };
+                    });
                 },
                 levelUpPlant: (plantId: string) => {
-                    const state = get();
-                    const plant = state.plants[plantId];
-                    if (!plant) return;
-                    
-                    const cost = plant.costBase * Math.pow(plant.costScaling, plant.level);
-                    if (state.chi >= cost) {
-                        set(s => ({
-                            chi: s.chi - cost,
+                    set(state => {
+                        const plant = state.plants[plantId];
+                        if (!plant) {
+                            return state;
+                        }
+
+                        const cost = calculatePlantCost(plant);
+                        if (state.chi < cost) {
+                            return state;
+                        }
+
+                        return {
+                            ...state,
+                            chi: state.chi - cost,
                             plants: {
-                                ...s.plants,
+                                ...state.plants,
                                 [plantId]: { ...plant, level: plant.level + 1 },
                             },
-                        }));
-                    }
+                        };
+                    });
+
                 },
                 performRitual: (ritualId: string) => {
-                    const state = get();
-                    const ritual = state.rituals[ritualId];
-                    if (!ritual || state.chi < ritual.cost) return;
+                    set(state => {
+                        const ritual = state.rituals[ritualId];
+                        if (!ritual) {
+                            return state;
+                        }
 
-                    const changes = ritual.effect(state);
-                    set(s => ({
-                        ...changes,
-                        chi: s.chi - ritual.cost,
-                    }));
+                        if (state.chi < ritual.cost) {
+                            return state;
+                        }
+
+                        const changes = ritual.effect(extractGameState(state));
+                        return {
+                            ...state,
+                            ...changes,
+                            chi: state.chi - ritual.cost,
+                        };
+                    });
                 },
                 changeZone: (zoneId: string) => {
-                    const state = get();
-                    if (state.zones[zoneId] && state.zones[zoneId].unlockCondition(state)) {
-                        set({ currentZoneId: zoneId, log: [...state.log, `You moved to the ${state.zones[zoneId].name}.`] });
-                    }
+                    set(state => {
+                        const zone = state.zones[zoneId];
+                        if (!zone || !zone.unlockCondition(extractGameState(state))) {
+                            return state;
+                        }
+
+                        return {
+                            ...state,
+                            currentZoneId: zoneId,
+                            log: [...state.log, `You moved to the ${zone.name}.`],
+                        };
+                    });
                 },
                 resolveEvent: (choiceIndex: number) => {
-                    const state = get();
-                    const event = state.currentEvent;
-                    if (!event || !event.choices[choiceIndex]) return;
+                    set(state => {
+                        const event = state.currentEvent;
+                        if (!event || !event.choices[choiceIndex]) {
+                            return state;
+                        }
 
-                    const choice = event.choices[choiceIndex];
-                    const changes = choice.effect(state);
-                    set(s => ({
-                        ...changes,
-                        currentEvent: null, // Event is resolved
-                    }));
+                        const choice = event.choices[choiceIndex];
+                        const changes = choice.effect(extractGameState(state));
+                        return {
+                            ...state,
+                            ...changes,
+                            currentEvent: null,
+                        };
+                    });
                 },
                 importState: (newState: GameState) => {
-                    // Perform migration/validation if necessary
-                    set({ ...newState, lastUpdate: Date.now() });
+                    const normalized = normalizeState(newState);
+                    set(state => ({
+                        ...state,
+                        ...normalized,
+                        lastUpdate: Date.now(),
+                    }));
                 },
                 reset: () => {
                     if (window.confirm("Are you sure you want to reset all progress? This cannot be undone.")) {
@@ -82,8 +140,9 @@ export const useGameStore = create<GameStore>()(
                             points: newPoints,
                             pendingPoints: 0,
                         },
-                        achievements: state.achievements, // Keep achievements
-                        log: [...baseState.log, `You have prestiged, gaining wisdom from the past.`]
+                        achievements: state.achievements,
+                        log: [...baseState.log, 'You have prestiged, gaining wisdom from the past.'],
+                        actions: state.actions,
                     });
                 },
                 clearOfflineReport: () => {
@@ -98,39 +157,32 @@ export const useGameStore = create<GameStore>()(
         {
             name: SAVE_KEY,
             partialize: ({ actions, ...rest }) => rest,
-            // FIX: Replaced incorrect `onFinishHydration` with `onRehydrateStorage`.
-            // The inner callback runs after hydration is complete, allowing for offline progress calculation.
+
             onRehydrateStorage: () => (hydratedState, error) => {
                 if (error) {
                     console.error("Failed to hydrate state:", error);
                     return;
                 }
-                if (!hydratedState) {
-                    return;
-                }
 
                 const now = Date.now();
-                // lastUpdate is from the persisted state.
-                const lastUpdate = hydratedState.lastUpdate ?? now;
-                const secondsOffline = Math.floor((now - lastUpdate) / 1000);
-                
-                if (secondsOffline > 10) {
-                    const stateBefore = hydratedState;
-                    
-                    // Cap offline time to 24 hours to prevent exploitation
-                    const cappedSeconds = Math.min(secondsOffline, 24 * 60 * 60); 
-                    const stateAfter = tick(stateBefore, cappedSeconds);
-                    const chiGained = stateAfter.chi - stateBefore.chi;
+                 const normalized = normalizeState(hydratedState ?? undefined);
+                const secondsOffline = Math.max(0, Math.floor((now - normalized.lastUpdate) / 1000));
+
+                let nextState = normalized;
+                let report: OfflineReport | null = null;
+
+                if (secondsOffline > MIN_OFFLINE_SECONDS) {
+                    const cappedSeconds = Math.min(secondsOffline, OFFLINE_CAP_SECONDS);
+                    nextState = tick(normalized, cappedSeconds);
+                    const chiGained = nextState.chi - normalized.chi;
+
 
                     if (chiGained > 0) {
-                        const report = { secondsOffline: cappedSeconds, chiGained };
-                        // FIX: Use `useGameStore.setState` to update the store post-hydration.
-                        useGameStore.setState({ ...stateAfter, lastUpdate: now, offlineReport: report });
-                    } else {
-                        // FIX: Use `useGameStore.setState` to update the store post-hydration.
-                        useGameStore.setState({ lastUpdate: now });
+                        report = { secondsOffline: cappedSeconds, chiGained };
                     }
                 }
+
+                useGameStore.setState(state => mergeOfflineReport(state, nextState, report, now));                
             },
         }
     )

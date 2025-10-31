@@ -49,6 +49,8 @@ describe('gameStore actions', () => {
 describe('gameStore persistence and offline progress', () => {
     it('should calculate offline progress on rehydration', () => {
         vi.useFakeTimers();
+        const baseTime = new Date('2024-01-01T00:00:00Z');
+        vi.setSystemTime(baseTime);
 
         const oneHourAgo = Date.now() - 3600 * 1000;
         const initialState = getInitialState();
@@ -70,8 +72,11 @@ describe('gameStore persistence and offline progress', () => {
 
         const state = useGameStore.getState();
         // Chi should be significantly more than the starting 10
-        expect(state.chi).toBeGreaterThan(15); 
+        expect(state.chi).toBeGreaterThan(15);
         expect(state.lastUpdate).toBe(Date.now());
+        expect(state.offlineReport).not.toBeNull();
+        expect(state.offlineReport?.secondsOffline).toBe(3600);
+        expect(state.offlineReport?.chiGained).toBeGreaterThan(0);
 
         vi.useRealTimers();
     });
@@ -79,6 +84,8 @@ describe('gameStore persistence and offline progress', () => {
     // FIX: Make test function async to allow await
     it('should cap offline progress at 24 hours', async () => {
         vi.useFakeTimers();
+        const baseTime = new Date('2024-01-01T00:00:00Z');
+        vi.setSystemTime(baseTime);
 
         // Simulate being offline for 30 hours
         const thirtyHoursAgo = Date.now() - 30 * 3600 * 1000;
@@ -113,6 +120,8 @@ describe('gameStore persistence and offline progress', () => {
 
         // The actual gain should be close to the 24-hour capped gain, not the 30-hour gain.
         expect(actualChiGain).toBeCloseTo(expectedChiGain, -1);
+
+        expect(finalState.offlineReport?.secondsOffline).toBe(24 * 3600);
         
         vi.useRealTimers();
     });

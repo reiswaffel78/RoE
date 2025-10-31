@@ -1,4 +1,6 @@
 // services/storage.ts
+// FIX: Import React to resolve React.ChangeEvent type.
+import React from 'react';
 import { GameState } from '../types';
 import { gameVersion } from '../core/data';
 

@@ -1,6 +1,7 @@
 // components/ZoneMap.tsx
 import React from 'react';
 import { useGameStore } from '../store/gameStore';
+import type { Zone } from '../types';
 
 const ZoneMap: React.FC = () => {
     // FIX: Destructuring with a rest parameter was creating an incomplete state object.
@@ -12,7 +13,8 @@ const ZoneMap: React.FC = () => {
         <div className="bg-slate-800/50 p-4 rounded-lg shadow-md">
             <h2 className="text-xl font-semibold mb-2 text-blue-200">Zones</h2>
             <div className="flex gap-2">
-                {Object.values(zones).map(zone => {
+                {/* FIX: Add explicit type for `zone` to resolve properties on `unknown` type error. */}
+                {Object.values(zones).map((zone: Zone) => {
                     const isUnlocked = zone.unlockCondition(state);
                     const isCurrent = zone.id === currentZoneId;
                     return (

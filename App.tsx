@@ -32,9 +32,7 @@ const App: React.FC = () => {
     const { isUpdateAvailable, reloadAndUpdate } = useServiceWorker();
 
     // Game loop
-    useGameLoop(() => {
-        actions.tick(1); // Tick every second
-    }, 1000);
+    useGameLoop(actions.tick, 1000);
 
     // Dev menu listener
     useEffect(() => {

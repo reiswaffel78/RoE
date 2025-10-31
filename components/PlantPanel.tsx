@@ -1,22 +1,26 @@
 // components/PlantPanel.tsx
 import React from 'react';
+import { shallow } from 'zustand/shallow';
 import { useGameStore } from '../store/gameStore';
 import { formatNumber } from '../utils/format';
+import type { Plant } from '../types';
+import { calculatePlantCost } from '../core/gameLogic';
 
 const PlantPanel: React.FC = () => {
     const { plants, chi, actions } = useGameStore(state => ({
         plants: state.plants,
         chi: state.chi,
         actions: state.actions,
-    }));
+    }), shallow);
 
     return (
         <div className="bg-slate-800/50 p-4 rounded-lg shadow-md">
             <h2 className="text-xl font-semibold mb-2 text-emerald-200">Plants</h2>
             <div className="space-y-2">
-                {Object.values(plants).map(plant => {
+                {/* FIX: Add explicit type for `plant` to resolve properties on `unknown` type error. */}
+                {Object.values(plants).map((plant: Plant) => {
                     if (plant.level === 0 && plant.id !== 'p1') return null; // Hide unpurchased
-                    const cost = plant.costBase * Math.pow(plant.costScaling, plant.level);
+                    const cost = calculatePlantCost(plant);
                     return (
                         <div key={plant.id} className="flex justify-between items-center bg-slate-700/50 p-2 rounded">
                             <div>

@@ -4,6 +4,7 @@ import { useGameStore } from '../store/gameStore';
 import { generateSpiritMessage } from '../services/ai/gemini';
 import { useDynamicText } from '../hooks/useDynamicText';
 import { formatNumber } from '../utils/format';
+import type { Plant } from '../types';
 
 const SpiritDialog: React.FC = () => {
     const gameState = useGameStore(state => ({ chi: state.chi, balance: state.balance, plants: state.plants }));
@@ -11,7 +12,8 @@ const SpiritDialog: React.FC = () => {
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            const summary = `Chi: ${formatNumber(gameState.chi)}, Balance: ${gameState.balance.toFixed(1)}%. Player has ${Object.values(gameState.plants).filter(p => p.level > 0).length} types of plants.`;
+            // FIX: Add explicit type for `p` to resolve properties on `unknown` type error.
+            const summary = `Chi: ${formatNumber(gameState.chi)}, Balance: ${gameState.balance.toFixed(1)}%. Player has ${Object.values(gameState.plants).filter((p: Plant) => p.level > 0).length} types of plants.`;
             generateText(summary);
         }, 30000); // Generate a new message every 30 seconds
 
