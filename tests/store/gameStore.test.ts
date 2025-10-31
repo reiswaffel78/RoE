@@ -1,16 +1,22 @@
 // tests/store/gameStore.test.ts
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { useGameStore } from '../../store/gameStore';
+import { useGameStore, rehydrateGameStore } from '../../store/gameStore';
 import { getInitialState } from '../../core/data';
+
+const resetStore = () => {
+    const { actions } = useGameStore.getState();
+    useGameStore.setState({ ...getInitialState(), actions, hydrated: true });
+};
+
 
 // Reset the store's state before each test
 beforeEach(() => {
-    useGameStore.setState(getInitialState());
+    resetStore();
 });
 
 afterEach(() => {
     vi.useRealTimers();
-})
+});
 
 describe('gameStore actions', () => {
     it('levelUpPlant should increase level and decrease chi', () => {
@@ -58,17 +64,8 @@ describe('gameStore persistence and offline progress', () => {
         initialState.plants.p1.level = 5; // Give some CPS
 
         // FIX: Manually simulate the onRehydrateStorage logic
-        const onRehydrateStorage = useGameStore.persist.getOptions().onRehydrateStorage;
-        if (onRehydrateStorage) {
-            // Manually set state to simulate hydration before the callback
-            useGameStore.setState(initialState);
-            const onFinish = onRehydrateStorage();
-            if (onFinish) {
-                onFinish(useGameStore.getState(), undefined);
-            }
-        } else {
-            throw new Error('onRehydrateStorage function not found on persist options');
-        }
+        useGameStore.setState(state => ({ ...state, ...initialState }));
+        rehydrateGameStore(initialState);
 
         const state = useGameStore.getState();
         // Chi should be significantly more than the starting 10
@@ -103,18 +100,8 @@ describe('gameStore persistence and offline progress', () => {
         // --- End calculation ---
 
         // FIX: Manually simulate the onRehydrateStorage logic
-        const onRehydrateStorage = useGameStore.persist.getOptions().onRehydrateStorage;
-        if (onRehydrateStorage) {
-            // Manually set state to simulate hydration before the callback
-            useGameStore.setState(initialState);
-            const onFinish = onRehydrateStorage();
-            if (onFinish) {
-                onFinish(useGameStore.getState(), undefined);
-            }
-        } else {
-            throw new Error('onRehydrateStorage function not found on persist options');
-        }
-
+        useGameStore.setState(state => ({ ...state, ...initialState }));
+        rehydrateGameStore(initialState);
         const finalState = useGameStore.getState();
         const actualChiGain = finalState.chi - initialChi;
 

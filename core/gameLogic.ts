@@ -24,6 +24,7 @@ const appendLogEntry = (state: GameState, log: string[], entry: string): string[
 const applySingleTick = (state: GameState, deltaSeconds: number): GameState => {
     const balanceMods = getBalanceModifiers(state);
     const zoneMods = getZoneModifier(state);
+        let totalCps = 0;
 
     for (const plantId of Object.keys(state.plants)) {
         const plant: Plant | undefined = state.plants[plantId];
@@ -129,7 +130,7 @@ const applySingleTick = (state: GameState, deltaSeconds: number): GameState => {
         currentEvent,
         achievements,
         prestige,
-        lastUpdate: state.lastUpdate + deltaSeconds * 1000,
+
     };
 };
 

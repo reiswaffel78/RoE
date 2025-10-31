@@ -205,6 +205,7 @@ const sanitizeOfflineReport = (report?: OfflineReport | null): OfflineReport | n
 const sanitizeZoneId = (zoneId: string | undefined): string => (zoneId && initialZones[zoneId] ? zoneId : 'z1');
 
 export const getInitialState = (): GameState => ({
+    version: gameVersion,
     chi: 10,
     balance: 50,
     plants: clonePlants(),
@@ -228,6 +229,7 @@ export const normalizeState = (partial?: Partial<GameState>): GameState => {
     }
 
     const base = getInitialState();
+    const version = typeof partial.version === 'string' && partial.version.trim() ? partial.version : gameVersion;
     const chi = clampNumber(Number(partial.chi ?? base.chi), 0);
     const totalChi = clampNumber(Number(partial.totalChi ?? base.totalChi), 0);
     const playTime = clampNumber(Number(partial.playTime ?? base.playTime), 0);
@@ -251,5 +253,6 @@ export const normalizeState = (partial?: Partial<GameState>): GameState => {
         lastUpdate: Number.isFinite(lastUpdate) && lastUpdate > 0 ? lastUpdate : Date.now(),
         currentEvent: null,
         offlineReport: sanitizeOfflineReport(partial.offlineReport ?? null),
+        version,
     };
 };

@@ -2,36 +2,86 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { GameState, GameStore, OfflineReport } from '../types';
-import { getInitialState, normalizeState } from '../core/data';
+import { getInitialState, normalizeState, gameVersion } from '../core/data';
 import { tick, calculatePlantCost } from '../core/gameLogic';
+import { recordBootWarning } from '../utils/bootDiagnostics';
 
 const SAVE_KEY = 'zen-garden-save';
 const MIN_OFFLINE_SECONDS = 10;
 const OFFLINE_CAP_SECONDS = 24 * 60 * 60;
 
 const extractGameState = (state: GameStore): GameState => {
-    const { actions, ...gameState } = state;
+    const { actions, hydrated, ...gameState } = state;
     return gameState;
 };
 
-const mergeOfflineReport = (state: GameStore, nextState: GameState, report: OfflineReport | null, timestamp: number): GameStore => ({
+const mergeOfflineReport = (
+    state: GameStore,
+    nextState: GameState,
+    report: OfflineReport | null,
+    timestamp: number,
+): GameStore => ({
     ...state,
     ...nextState,
     lastUpdate: timestamp,
     offlineReport: report,
+        version: gameVersion,
 });
+
+export function rehydrateGameStore(hydratedState?: Partial<GameState>, error?: unknown) {
+    if (error) {
+        console.error('Failed to hydrate state:', error);
+        return;
+    }
+
+    const now = Date.now();
+    let normalized: GameState;
+    try {
+        normalized = normalizeState(hydratedState ?? undefined);
+    } catch (normalizeError) {
+        recordBootWarning('Save data corrupted, starting fresh');
+        console.error('Failed to normalize persisted state', normalizeError);
+        normalized = getInitialState();
+    }
+
+    if (normalized.version !== gameVersion) {
+        recordBootWarning(`Migrated save from ${normalized.version} to ${gameVersion}`);
+        normalized.version = gameVersion;
+    }
+
+    const secondsOffline = Math.max(0, Math.floor((now - normalized.lastUpdate) / 1000));
+
+    let nextState = normalized;
+    let report: OfflineReport | null = null;
+
+    if (secondsOffline > MIN_OFFLINE_SECONDS) {
+        const cappedSeconds = Math.min(secondsOffline, OFFLINE_CAP_SECONDS);
+        nextState = tick(normalized, cappedSeconds);
+        const chiGained = nextState.chi - normalized.chi;
+
+        if (chiGained > 0) {
+            report = { secondsOffline: cappedSeconds, chiGained };
+        }
+    }
+
+    useGameStore.setState(state => ({
+        ...mergeOfflineReport(state, nextState, report, now),
+        hydrated: true,
+    }));
+}
 
 export const useGameStore = create<GameStore>()(
     persist(
         (set, get) => ({
             ...getInitialState(),
+                        hydrated: false,
             actions: {
                 tick: (deltaTime: number) => {
-                                        const now = Date.now();
+                    const now = Date.now();
                     set(state => {
                         const safeDelta = Number.isFinite(deltaTime) && deltaTime > 0 ? deltaTime : 0;
                         if (safeDelta === 0) {
-                            return { ...state, lastUpdate: now };
+                            return { ...state, lastUpdate: now, version: gameVersion  };
                         }
 
                         const nextState = tick(extractGameState(state), safeDelta);
@@ -39,6 +89,7 @@ export const useGameStore = create<GameStore>()(
                             ...state,
                             ...nextState,
                             lastUpdate: now,
+                            version: gameVersion,
                         };
                     });
                 },
@@ -63,7 +114,6 @@ export const useGameStore = create<GameStore>()(
                             },
                         };
                     });
-
                 },
                 performRitual: (ritualId: string) => {
                     set(state => {
@@ -120,11 +170,12 @@ export const useGameStore = create<GameStore>()(
                         ...state,
                         ...normalized,
                         lastUpdate: Date.now(),
+                     version: gameVersion,
                     }));
                 },
                 reset: () => {
-                    if (window.confirm("Are you sure you want to reset all progress? This cannot be undone.")) {
-                        set(getInitialState());
+                    if (window.confirm('Are you sure you want to reset all progress? This cannot be undone.')) {
+                        set({ ...getInitialState(), hydrated: true });
                     }
                 },
                 prestige: () => {
@@ -143,6 +194,7 @@ export const useGameStore = create<GameStore>()(
                         achievements: state.achievements,
                         log: [...baseState.log, 'You have prestiged, gaining wisdom from the past.'],
                         actions: state.actions,
+                        hydrated: true,
                     });
                 },
                 clearOfflineReport: () => {
@@ -151,39 +203,16 @@ export const useGameStore = create<GameStore>()(
                 // Dev actions
                 addChi: (amount: number) => {
                     set(state => ({ chi: state.chi + amount, totalChi: state.totalChi + amount }));
-                }
+                },
             },
         }),
         {
             name: SAVE_KEY,
-            partialize: ({ actions, ...rest }) => rest,
+            partialize: ({ actions, hydrated, ...rest }) => rest,
 
             onRehydrateStorage: () => (hydratedState, error) => {
-                if (error) {
-                    console.error("Failed to hydrate state:", error);
-                    return;
-                }
-
-                const now = Date.now();
-                 const normalized = normalizeState(hydratedState ?? undefined);
-                const secondsOffline = Math.max(0, Math.floor((now - normalized.lastUpdate) / 1000));
-
-                let nextState = normalized;
-                let report: OfflineReport | null = null;
-
-                if (secondsOffline > MIN_OFFLINE_SECONDS) {
-                    const cappedSeconds = Math.min(secondsOffline, OFFLINE_CAP_SECONDS);
-                    nextState = tick(normalized, cappedSeconds);
-                    const chiGained = nextState.chi - normalized.chi;
-
-
-                    if (chiGained > 0) {
-                        report = { secondsOffline: cappedSeconds, chiGained };
-                    }
-                }
-
-                useGameStore.setState(state => mergeOfflineReport(state, nextState, report, now));                
+            rehydrateGameStore(hydratedState ?? undefined, error ?? undefined);
             },
-        }
-    )
+        },
+    ),
 );

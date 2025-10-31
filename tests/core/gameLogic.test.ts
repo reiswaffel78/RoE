@@ -90,6 +90,16 @@ describe('gameLogic', () => {
         expect(long.chi).toBeGreaterThan(short.chi);
     });
 
+        it('does not mutate version or lastUpdate inside core tick', () => {
+        const state = getInitialState();
+        const beforeLastUpdate = state.lastUpdate;
+        const result = tick(state, 5);
+
+        expect(result.version).toBe(state.version);
+        expect(result.lastUpdate).toBe(beforeLastUpdate);
+    });
+
+
     it('calculates plant cost from core helper', () => {
         const state = getInitialState();
         state.plants.p1.level = 3;
