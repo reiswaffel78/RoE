@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { GameState, GameStore, OfflineReport } from '../types';
-import { getInitialState, normalizeState, gameVersion } from '../core/data';
+import { getInitialState, normalizeState, gameVersion, logEntry } from '../core/data';
 import { tick, calculatePlantCost } from '../core/gameLogic';
 import { recordBootWarning } from '../utils/bootDiagnostics';
 
@@ -165,7 +165,7 @@ export const useGameStore = create<GameStore>()(
                         return {
                             ...state,
                             currentZoneId: zoneId,
-                            log: [...state.log, `You moved to the ${zone.name}.`],
+                            log: [...state.log, logEntry('log.zone.moved', { zoneId })],
                         };
                     });
                 },
@@ -213,7 +213,7 @@ export const useGameStore = create<GameStore>()(
                             pendingPoints: 0,
                         },
                         achievements: state.achievements,
-                        log: [...baseState.log, 'You have prestiged, gaining wisdom from the past.'],
+                        log: [...baseState.log, logEntry('log.prestige')],
                         actions: state.actions,
                         hydrated: true,
                     });

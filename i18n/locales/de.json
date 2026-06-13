@@ -64,7 +64,25 @@
     "silent": "Der Garten ist still."
   },
   "log": {
-    "title": "Garten-Protokoll"
+    "title": "Garten-Protokoll",
+    "raw": "{{text}}",
+    "welcome": "Dein Garten erwartet dich.",
+    "prestige": "Du hast Prestige durchgeführt und Weisheit aus der Vergangenheit gewonnen.",
+    "achievement": "Erfolg freigeschaltet: {{name}}",
+    "event": {
+      "strange": "Ein seltsames Gefühl überkommt den Garten…",
+      "sprite": {
+        "gift": "Der Kobold schenkt dir einen Energieschub!",
+        "wisdom": "Die Weisheit des Kobolds verschiebt sanft die Balance des Gartens."
+      }
+    },
+    "rituals": {
+      "meditate": "Du meditierst und fühlst dich dem Ätherischen stärker verbunden.",
+      "ground": "Du erdest dich und spürst die Kraft der Erde."
+    },
+    "zone": {
+      "moved": "Du bist zur {{zone}} gewechselt."
+    }
   },
   "events": {
     "e1": {

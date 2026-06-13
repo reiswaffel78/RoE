@@ -1,9 +1,9 @@
 // core/gameLogic.ts
-import { GameState, Plant } from '../types';
+import { GameState, LogEntry, Plant } from '../types';
 import { getBalanceModifiers } from './balanceSystem';
 import { getZoneModifier } from './environmentalSystem';
 import { gameEvents } from './events';
-import { initialAchievements } from './data';
+import { initialAchievements, logEntry } from './data';
 
 const MAX_TICK_SECONDS = 60;
 
@@ -14,7 +14,7 @@ const clampPositiveFinite = (value: number): number => {
     return value;
 };
 
-const appendLogEntry = (state: GameState, log: string[], entry: string): string[] => {
+const appendLogEntry = (state: GameState, log: LogEntry[], entry: LogEntry): LogEntry[] => {
     if (log === state.log) {
         return [...state.log, entry];
     }
@@ -100,7 +100,7 @@ const applySingleTick = (state: GameState, deltaSeconds: number): GameState => {
             try {
                 if (event.trigger(stateForChecks)) {
                     currentEvent = event;
-                    log = appendLogEntry(state, log, 'A strange feeling comes over the garden...');
+                    log = appendLogEntry(state, log, logEntry('log.event.strange'));
                     break;
                 }
             } catch {
@@ -133,7 +133,7 @@ const applySingleTick = (state: GameState, deltaSeconds: number): GameState => {
                     achievements = { ...state.achievements };
                 }
                 achievements[achievementId] = { ...achievementState, unlocked: true };
-                log = appendLogEntry(state, log, `Achievement Unlocked: ${achievementState.name}`);
+                log = appendLogEntry(state, log, logEntry('log.achievement', { achievementId }));
             }
         }
     }

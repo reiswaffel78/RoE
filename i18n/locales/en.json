@@ -64,7 +64,25 @@
     "silent": "The garden is silent."
   },
   "log": {
-    "title": "Garden Log"
+    "title": "Garden Log",
+    "raw": "{{text}}",
+    "welcome": "Your garden awaits.",
+    "prestige": "You have prestiged, gaining wisdom from the past.",
+    "achievement": "Achievement Unlocked: {{name}}",
+    "event": {
+      "strange": "A strange feeling comes over the garden…",
+      "sprite": {
+        "gift": "The sprite gifts you a burst of energy!",
+        "wisdom": "The sprite's wisdom subtly shifts the garden's balance."
+      }
+    },
+    "rituals": {
+      "meditate": "You meditate, feeling more attuned to the ethereal.",
+      "ground": "You ground yourself, feeling the strength of the earth."
+    },
+    "zone": {
+      "moved": "You moved to the {{zone}}."
+    }
   },
   "events": {
     "e1": {

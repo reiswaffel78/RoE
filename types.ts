@@ -69,6 +69,11 @@ export interface OfflineReport {
     chiGained: number;
 }
 
+export interface LogEntry {
+    key: string; // i18n key, translated at render time
+    params?: Record<string, string | number>;
+}
+
 export interface GameState {
     version: string;
     chi: number;
@@ -80,7 +85,7 @@ export interface GameState {
     achievements: Record<string, Achievement>;
     prestige: PrestigeState;
     currentZoneId: string;
-    log: string[];
+    log: LogEntry[];
     lastUpdate: number;
     currentEvent: GameEvent | null;
     totalChi: number;

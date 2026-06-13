@@ -1,7 +1,10 @@
 // core/data.ts
-import { Achievement, GameState, OfflineReport, Plant, PrestigeState, Ritual, Upgrade, Zone } from '../types';
+import { Achievement, GameState, LogEntry, OfflineReport, Plant, PrestigeState, Ritual, Upgrade, Zone } from '../types';
 
 export const gameVersion = '0.1.0';
+
+export const logEntry = (key: string, params?: Record<string, string | number>): LogEntry =>
+    params ? { key, params } : { key };
 
 export const initialPlants: Record<string, Plant> = {
     p1: {
@@ -55,7 +58,7 @@ export const initialRituals: Record<string, Ritual> = {
         isUnlocked: (state) => state.plants.p1.level >= 5,
         effect: (state) => ({
             balance: Math.min(100, state.balance + 5),
-            log: [...state.log, 'You meditate, feeling more attuned to the ethereal.'],
+            log: [...state.log, logEntry('log.rituals.meditate')],
         }),    },
     r2: {
          id: 'r2',
@@ -65,7 +68,7 @@ export const initialRituals: Record<string, Ritual> = {
         isUnlocked: (state) => state.plants.p1.level >= 5,
         effect: (state) => ({
             balance: Math.max(0, state.balance - 5),
-            log: [...state.log, 'You ground yourself, feeling the strength of the earth.'],
+            log: [...state.log, logEntry('log.rituals.ground')],
         }),    },
 };
 
@@ -147,7 +150,7 @@ export const initialAchievements: Record<string, Achievement> = {
         name: 'Spiritual Attunement',
         description: 'Perform a ritual for the first time.',
         unlocked: false,
-        check: (state) => state.log.some((l) => l.includes('meditate') || l.includes('ground')),
+        check: (state) => state.log.some((l) => l.key === 'log.rituals.meditate' || l.key === 'log.rituals.ground'),
     },
 };
 
@@ -223,12 +226,22 @@ const clonePrestige = (override?: PrestigeState): PrestigeState => ({
     pendingPoints: clampNumber(override?.pendingPoints ?? initialPrestige.pendingPoints, 0),
 });
 
-const sanitizeLog = (log?: unknown[]): string[] => {
+const sanitizeLog = (log?: unknown[]): LogEntry[] => {
+    const fallback: LogEntry[] = [logEntry('log.welcome')];
     if (!Array.isArray(log)) {
-        return ['Your garden awaits.'];
+        return fallback;
     }
-    const filtered = log.filter((entry): entry is string => typeof entry === 'string');
-    return filtered.length > 0 ? filtered.slice(-200) : ['Your garden awaits.'];
+    const normalized = log.reduce<LogEntry[]>((acc, entry) => {
+        if (typeof entry === 'string') {
+            // Legacy saves stored plain strings; preserve them verbatim.
+            acc.push(logEntry('log.raw', { text: entry }));
+        } else if (entry && typeof entry === 'object' && typeof (entry as LogEntry).key === 'string') {
+            const candidate = entry as LogEntry;
+            acc.push(candidate.params ? { key: candidate.key, params: candidate.params } : { key: candidate.key });
+        }
+        return acc;
+    }, []);
+    return normalized.length > 0 ? normalized.slice(-200) : fallback;
 };
 
 const sanitizeOfflineReport = (report?: OfflineReport | null): OfflineReport | null => {
@@ -256,7 +269,7 @@ export const getInitialState = (): GameState => ({
     achievements: cloneAchievements(),
     prestige: clonePrestige(),
     currentZoneId: 'z1',
-    log: ['Your garden awaits.'],
+    log: [logEntry('log.welcome')],
     lastUpdate: Date.now(),
     currentEvent: null,
     totalChi: 10,
