@@ -1,5 +1,6 @@
 // App.tsx
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from './store/gameStore';
 import { useGameLoop } from './hooks/useGameLoop';
@@ -28,6 +29,7 @@ const App: React.FC = () => {
         hydrated: state.hydrated,
     })));
 
+    const { t } = useTranslation();
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isDevMenuOpen, setIsDevMenuOpen] = useState(false);
 
@@ -53,7 +55,7 @@ const App: React.FC = () => {
             <div className="bg-slate-950 text-slate-100 min-h-screen font-sans relative z-10">
                             {!hydrated && (
                     <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80 z-20">
-                        <div className="text-sm tracking-wide uppercase text-slate-400">Restoring the garden…</div>
+                        <div className="text-sm tracking-wide uppercase text-slate-400">{t('app.restoring')}</div>
                     </div>
                 )}
                 <TopBar onSettingsClick={() => setIsSettingsOpen(true)} />

@@ -40,6 +40,26 @@ describe('gameStore actions', () => {
         expect(useGameStore.getState()).toEqual(initialState);
     });
 
+    it('buyUpgrade should mark it owned and deduct chi', () => {
+        useGameStore.setState({ chi: 1000 });
+
+        useGameStore.getState().actions.buyUpgrade('u1'); // Fertile Soil, cost 500
+
+        const state = useGameStore.getState();
+        expect(state.upgrades.u1.unlocked).toBe(true);
+        expect(state.chi).toBe(500);
+    });
+
+    it('buyUpgrade should do nothing without enough chi', () => {
+        useGameStore.setState({ chi: 100 });
+
+        useGameStore.getState().actions.buyUpgrade('u1'); // cost 500
+
+        const state = useGameStore.getState();
+        expect(state.upgrades.u1.unlocked).toBe(false);
+        expect(state.chi).toBe(100);
+    });
+
     it('performRitual should apply effect and decrease chi', () => {
         useGameStore.setState({ chi: 100, balance: 50 });
         

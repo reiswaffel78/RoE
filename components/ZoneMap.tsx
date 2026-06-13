@@ -1,19 +1,25 @@
 // components/ZoneMap.tsx
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from '../store/gameStore';
 import type { Zone } from '../types';
 
 const ZoneMap: React.FC = () => {
-    // FIX: Destructuring with a rest parameter was creating an incomplete state object.
-    // Get the full state object first, then destructure needed properties.
-    const state = useGameStore(state => state);
-    const { zones, currentZoneId, actions } = state;
+    const { t } = useTranslation();
+    const { zones, currentZoneId, actions } = useGameStore(
+        useShallow(state => ({
+            zones: state.zones,
+            currentZoneId: state.currentZoneId,
+            actions: state.actions,
+        })),
+    );
+    const state = useGameStore.getState();
 
     return (
         <div className="bg-slate-800/50 p-4 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-2 text-blue-200">Zones</h2>
+            <h2 className="text-xl font-semibold mb-2 text-blue-200">{t('zones.title')}</h2>
             <div className="flex gap-2">
-                {/* FIX: Add explicit type for `zone` to resolve properties on `unknown` type error. */}
                 {Object.values(zones).map((zone: Zone) => {
                     const isUnlocked = zone.unlockCondition(state);
                     const isCurrent = zone.id === currentZoneId;
@@ -24,8 +30,8 @@ const ZoneMap: React.FC = () => {
                             disabled={!isUnlocked || isCurrent}
                             className={`p-2 rounded flex-1 text-center ${isCurrent ? 'bg-blue-600' : 'bg-blue-800'} ${isUnlocked ? 'hover:bg-blue-700' : 'opacity-50 cursor-not-allowed'}`}
                         >
-                            <p className="font-bold">{zone.name}</p>
-                            <p className="text-xs">{zone.description}</p>
+                            <p className="font-bold">{t(`zones.${zone.id}.name`, zone.name)}</p>
+                            <p className="text-xs">{t(`zones.${zone.id}.description`, zone.description)}</p>
                         </button>
                     );
                 })}

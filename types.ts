@@ -53,9 +53,10 @@ export interface Upgrade {
     name: string;
     description: string;
     cost: number;
-    unlocked: boolean;
-    effect: (state: GameState) => Partial<GameState>;
-    isUnlocked: (state: GameState) => boolean;
+    unlocked: boolean; // true once purchased / owned
+    productionMultiplier: number;
+    affects: 'all' | 'physical' | 'ethereal';
+    isUnlocked: (state: GameState) => boolean; // visibility condition
 }
 
 export interface PrestigeState {
@@ -91,6 +92,7 @@ export interface GameState {
 export interface GameActions {
     tick: (deltaTime: number) => void;
     levelUpPlant: (plantId: string) => void;
+    buyUpgrade: (upgradeId: string) => void;
     performRitual: (ritualId: string) => void;
     changeZone: (zoneId: string) => void;
     resolveEvent: (choiceIndex: number) => void;

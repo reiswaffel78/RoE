@@ -21,9 +21,32 @@ const appendLogEntry = (state: GameState, log: string[], entry: string): string[
     return [...log, entry];
 };
 
+const getUpgradeModifiers = (state: GameState): { all: number; physical: number; ethereal: number } => {
+    let all = 1;
+    let physical = 1;
+    let ethereal = 1;
+
+    for (const upgrade of Object.values(state.upgrades)) {
+        if (!upgrade?.unlocked) {
+            continue;
+        }
+        const multiplier = Number.isFinite(upgrade.productionMultiplier) ? upgrade.productionMultiplier : 1;
+        if (upgrade.affects === 'physical') {
+            physical *= multiplier;
+        } else if (upgrade.affects === 'ethereal') {
+            ethereal *= multiplier;
+        } else {
+            all *= multiplier;
+        }
+    }
+
+    return { all, physical, ethereal };
+};
+
 const applySingleTick = (state: GameState, deltaSeconds: number): GameState => {
     const balanceMods = getBalanceModifiers(state);
     const zoneMods = getZoneModifier(state);
+    const upgradeMods = getUpgradeModifiers(state);
         let totalCps = 0;
 
     for (const plantId of Object.keys(state.plants)) {
@@ -38,9 +61,9 @@ const applySingleTick = (state: GameState, deltaSeconds: number): GameState => {
 
         let plantCps = plant.cpsBase * level;
         if (plant.type === 'physical') {
-            plantCps *= balanceMods.physicalBoost * zoneMods.physical;
+            plantCps *= balanceMods.physicalBoost * zoneMods.physical * upgradeMods.physical * upgradeMods.all;
         } else {
-            plantCps *= balanceMods.etherealBoost * zoneMods.ethereal;
+            plantCps *= balanceMods.etherealBoost * zoneMods.ethereal * upgradeMods.ethereal * upgradeMods.all;
         }
 
         if (Number.isFinite(plantCps) && plantCps > 0) {

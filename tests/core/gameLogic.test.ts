@@ -73,6 +73,25 @@ describe('gameLogic', () => {
     });
 
 
+    it('should apply owned upgrade production multipliers', () => {
+        const state = getInitialState();
+        state.plants.p1.level = 1; // physical plant
+
+        const baseGain = tick(state, 1).chi - state.chi;
+
+        // Own "Fertile Soil" (u1): +25% to all production.
+        const withUpgrade: GameState = {
+            ...state,
+            upgrades: {
+                ...state.upgrades,
+                u1: { ...state.upgrades.u1, unlocked: true },
+            },
+        };
+        const boostedGain = tick(withUpgrade, 1).chi - withUpgrade.chi;
+
+        expect(boostedGain).toBeCloseTo(baseGain * 1.25);
+    });
+
     it('should ignore non-positive delta times', () => {
         const state = getInitialState();
         const result = tick(state, -5);

@@ -1,8 +1,10 @@
 // components/EventLog.tsx
 import React, { useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useGameStore } from '../store/gameStore';
 
 const EventLog: React.FC = () => {
+    const { t } = useTranslation();
     const log = useGameStore(state => state.log);
     const logContainerRef = useRef<HTMLDivElement>(null);
 
@@ -14,7 +16,7 @@ const EventLog: React.FC = () => {
 
     return (
         <div className="bg-slate-800/50 p-4 rounded-lg shadow-md h-64 flex flex-col">
-            <h2 className="text-lg font-semibold mb-2 text-slate-200">Garden Log</h2>
+            <h2 className="text-lg font-semibold mb-2 text-slate-200">{t('log.title')}</h2>
             <div ref={logContainerRef} className="flex-grow overflow-y-auto pr-2">
                 {log.map((entry, index) => (
                     <p key={index} className="text-sm text-slate-400 mb-1">{entry}</p>

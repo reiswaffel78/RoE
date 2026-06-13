@@ -1,8 +1,10 @@
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useGameStore } from '../store/gameStore';
 
 const BalanceMeter: React.FC = () => {
+  const { t } = useTranslation();
   const balance = useGameStore(state => state.balance);
 
   const getBarColor = () => {
@@ -20,7 +22,7 @@ const BalanceMeter: React.FC = () => {
   return (
     <div className="w-full">
       <div className="flex justify-between items-center mb-1">
-        <span className="text-xs font-medium text-slate-300">Balance</span>
+        <span className="text-xs font-medium text-slate-300">{t('balance.label')}</span>
         <span className={`text-sm font-bold ${getTextColor()}`}>{balance.toFixed(1)}%</span>
       </div>
       <div className="w-full bg-slate-700 rounded-full h-2.5 shadow-inner">

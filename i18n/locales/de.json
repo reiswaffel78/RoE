@@ -1,1 +1,102 @@
-full contents of i18n/locales/de.json
+{
+  "app": {
+    "loading": "Lädt…",
+    "restoring": "Der Garten wird wiederhergestellt…"
+  },
+  "topbar": {
+    "title": "Roots of the Earth",
+    "settings": "Einstellungen"
+  },
+  "balance": {
+    "label": "Balance"
+  },
+  "plants": {
+    "title": "Pflanzen",
+    "level": "Stufe",
+    "levelUp": "Aufwerten ({{cost}})",
+    "p1": { "name": "Steinlotus", "description": "Eine robuste, grundlegende Pflanze." },
+    "p2": { "name": "Sonnenblüte", "description": "Leuchtet in sanftem, warmem Licht." },
+    "p3": { "name": "Mondschattenfarn", "description": "Gedeiht in Stille und Ruhe." },
+    "p4": { "name": "Traumholz-Setzling", "description": "Seine Blätter flüstern vergessene Erinnerungen." }
+  },
+  "rituals": {
+    "title": "Rituale",
+    "locked": "Lass deinen Garten wachsen, um Rituale freizuschalten.",
+    "cost": "Kosten: {{cost}}",
+    "r1": { "name": "Meditation", "description": "Fokussiere deinen Geist und verschiebe die Balance zum Ätherischen." },
+    "r2": { "name": "Erdung", "description": "Verbinde dich mit der Erde und verschiebe die Balance zum Physischen." }
+  },
+  "upgrades": {
+    "title": "Verbesserungen",
+    "empty": "Noch keine Verbesserungen verfügbar.",
+    "buy": "Kaufen",
+    "owned": "Im Besitz",
+    "cost": "Kosten: {{cost}}",
+    "u1": { "name": "Fruchtbarer Boden", "description": "Alle Pflanzen erzeugen 25% mehr Chi." },
+    "u2": { "name": "Tiefe Wurzeln", "description": "Physische Pflanzen erzeugen 50% mehr Chi." },
+    "u3": { "name": "Geisterbund", "description": "Ätherische Pflanzen erzeugen 50% mehr Chi." },
+    "u4": { "name": "Harmonische Resonanz", "description": "Verdoppelt die gesamte Chi-Produktion." }
+  },
+  "zones": {
+    "title": "Zonen",
+    "z1": { "name": "Stiller Hain", "description": "Ein ausgeglichener, friedlicher Startbereich." },
+    "z2": { "name": "Sonnendurchflutete Wiese", "description": "Begünstigt physisches Wachstum." }
+  },
+  "achievements": {
+    "title": "Erfolge ({{unlocked}}/{{total}})",
+    "a1": { "name": "Erste Knospe", "description": "Kaufe deinen ersten Steinlotus." },
+    "a2": { "name": "Tausend Blütenblätter", "description": "Sammle insgesamt 1.000 Chi." },
+    "a3": { "name": "Spirituelle Einstimmung", "description": "Führe zum ersten Mal ein Ritual durch." }
+  },
+  "prestige": {
+    "title": "Prestige",
+    "current": "Aktuelle Prestige-Punkte: {{points}}",
+    "next": "Punkte beim nächsten Zurücksetzen: {{points}}",
+    "action": "Jetzt Prestige",
+    "confirmTitle": "Prestige bestätigen",
+    "confirmBody": "Möchtest du wirklich Prestige durchführen? Dein aktueller Fortschritt wird zurückgesetzt, aber du erhältst {{points}} Prestige-Punkt(e), wodurch zukünftige Durchläufe schneller werden.",
+    "cancel": "Abbrechen",
+    "confirm": "Bestätigen"
+  },
+  "spirit": {
+    "title": "Flüstern des Geistes",
+    "loading": "Die Luft schimmert…",
+    "silent": "Der Garten ist still."
+  },
+  "log": {
+    "title": "Garten-Protokoll"
+  },
+  "events": {
+    "e1": {
+      "title": "Ein wandernder Kobold",
+      "description": "Ein winziger, schimmernder Kobold huscht in deinen Garten, angezogen von der wachsenden Energie. Er bietet ein Geschenk an.",
+      "choice0": "Sein Geschenk an Chi annehmen.",
+      "choice1": "Um seine Weisheit bitten."
+    }
+  },
+  "offline": {
+    "title": "Willkommen zurück!",
+    "body": "Während du für {{time}} weg warst, war dein Garten fleißig.",
+    "gathered": "Du hast {{chi}} Chi gesammelt.",
+    "continue": "Weiter"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "audio": "Audio",
+    "music": "Musik",
+    "sfx": "Soundeffekte",
+    "mute": "Stumm",
+    "unmute": "Ton an",
+    "language": "Sprache",
+    "data": "Datenverwaltung",
+    "export": "Speicherstand exportieren",
+    "import": "Speicherstand importieren",
+    "reset": "Fortschritt zurücksetzen",
+    "close": "Schließen"
+  },
+  "update": {
+    "title": "Update verfügbar",
+    "body": "Eine neue Version des Spiels ist bereit.",
+    "reload": "Neu laden"
+  }
+}

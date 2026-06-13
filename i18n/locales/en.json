@@ -1,1 +1,102 @@
-full contents of i18n/locales/en.json
+{
+  "app": {
+    "loading": "Loading…",
+    "restoring": "Restoring the garden…"
+  },
+  "topbar": {
+    "title": "Roots of the Earth",
+    "settings": "Settings"
+  },
+  "balance": {
+    "label": "Balance"
+  },
+  "plants": {
+    "title": "Plants",
+    "level": "Lv.",
+    "levelUp": "Lvl Up ({{cost}})",
+    "p1": { "name": "Stone Lotus", "description": "A sturdy, foundational plant." },
+    "p2": { "name": "Sunpetal", "description": "Glows with a gentle, warm light." },
+    "p3": { "name": "Moonshadow Fern", "description": "Thrives in stillness and quiet." },
+    "p4": { "name": "Dreamwood Sapling", "description": "Its leaves whisper forgotten memories." }
+  },
+  "rituals": {
+    "title": "Rituals",
+    "locked": "Grow your garden to unlock rituals.",
+    "cost": "Cost: {{cost}}",
+    "r1": { "name": "Meditation", "description": "Focus your mind, shifting balance towards the ethereal." },
+    "r2": { "name": "Grounding", "description": "Connect with the earth, shifting balance towards the physical." }
+  },
+  "upgrades": {
+    "title": "Upgrades",
+    "empty": "No upgrades available yet.",
+    "buy": "Buy",
+    "owned": "Owned",
+    "cost": "Cost: {{cost}}",
+    "u1": { "name": "Fertile Soil", "description": "All plants produce 25% more Chi." },
+    "u2": { "name": "Deep Roots", "description": "Physical plants produce 50% more Chi." },
+    "u3": { "name": "Spirit Bond", "description": "Ethereal plants produce 50% more Chi." },
+    "u4": { "name": "Harmonic Resonance", "description": "Doubles all Chi production." }
+  },
+  "zones": {
+    "title": "Zones",
+    "z1": { "name": "Serene Grove", "description": "A balanced, peaceful starting area." },
+    "z2": { "name": "Sun-dappled Meadow", "description": "Favors physical growth." }
+  },
+  "achievements": {
+    "title": "Achievements ({{unlocked}}/{{total}})",
+    "a1": { "name": "First Bud", "description": "Purchase your first Stone Lotus." },
+    "a2": { "name": "Thousand Petals", "description": "Accumulate 1,000 total Chi." },
+    "a3": { "name": "Spiritual Attunement", "description": "Perform a ritual for the first time." }
+  },
+  "prestige": {
+    "title": "Prestige",
+    "current": "Current prestige points: {{points}}",
+    "next": "Points on next reset: {{points}}",
+    "action": "Prestige Now",
+    "confirmTitle": "Confirm Prestige",
+    "confirmBody": "Are you sure you want to prestige? Your current progress will be reset, but you will gain {{points}} prestige point(s), making future runs faster.",
+    "cancel": "Cancel",
+    "confirm": "Confirm"
+  },
+  "spirit": {
+    "title": "Spirit's Whisper",
+    "loading": "The air shimmers…",
+    "silent": "The garden is silent."
+  },
+  "log": {
+    "title": "Garden Log"
+  },
+  "events": {
+    "e1": {
+      "title": "A Wandering Sprite",
+      "description": "A tiny, shimmering sprite flits into your garden, drawn by the growing energy. It offers a gift.",
+      "choice0": "Accept its gift of Chi.",
+      "choice1": "Ask for its wisdom."
+    }
+  },
+  "offline": {
+    "title": "Welcome Back!",
+    "body": "While you were away for {{time}}, your garden has been busy.",
+    "gathered": "You gathered {{chi}} Chi.",
+    "continue": "Continue"
+  },
+  "settings": {
+    "title": "Settings",
+    "audio": "Audio",
+    "music": "Music",
+    "sfx": "Sound Effects",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "language": "Language",
+    "data": "Data Management",
+    "export": "Export Save",
+    "import": "Import Save",
+    "reset": "Reset Progress",
+    "close": "Close"
+  },
+  "update": {
+    "title": "Update Available",
+    "body": "A new version of the game is ready.",
+    "reload": "Reload"
+  }
+}

@@ -115,6 +115,27 @@ export const useGameStore = create<GameStore>()(
                         };
                     });
                 },
+                buyUpgrade: (upgradeId: string) => {
+                    set(state => {
+                        const upgrade = state.upgrades[upgradeId];
+                        if (!upgrade || upgrade.unlocked) {
+                            return state;
+                        }
+
+                        if (state.chi < upgrade.cost) {
+                            return state;
+                        }
+
+                        return {
+                            ...state,
+                            chi: state.chi - upgrade.cost,
+                            upgrades: {
+                                ...state.upgrades,
+                                [upgradeId]: { ...upgrade, unlocked: true },
+                            },
+                        };
+                    });
+                },
                 performRitual: (ritualId: string) => {
                     set(state => {
                         const ritual = state.rituals[ritualId];

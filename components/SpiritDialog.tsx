@@ -1,5 +1,6 @@
 // components/SpiritDialog.tsx
 import React, { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from '../store/gameStore';
 import { generateSpiritMessage } from '../services/ai/gemini';
@@ -8,6 +9,7 @@ import { formatNumber } from '../utils/format';
 import type { Plant } from '../types';
 
 const SpiritDialog: React.FC = () => {
+    const { t } = useTranslation();
     const gameState = useGameStore(useShallow(state => ({ chi: state.chi, balance: state.balance, plants: state.plants })));
     const { text, isLoading, generateText } = useDynamicText(generateSpiritMessage);
 
@@ -30,9 +32,9 @@ const SpiritDialog: React.FC = () => {
 
     return (
         <div className="bg-slate-800/50 p-4 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-2 text-slate-200">Spirit's Whisper</h2>
+            <h2 className="text-lg font-semibold mb-2 text-slate-200">{t('spirit.title')}</h2>
             <p className="text-slate-400 italic">
-                {isLoading ? "The air shimmers..." : text || "The garden is silent."}
+                {isLoading ? t('spirit.loading') : text || t('spirit.silent')}
             </p>
         </div>
     );

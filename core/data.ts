@@ -84,7 +84,48 @@ export const initialZones: Record<string, Zone> = {
     },
 };
 
-export const initialUpgrades: Record<string, Upgrade> = {}; // Empty for now
+export const initialUpgrades: Record<string, Upgrade> = {
+    u1: {
+        id: 'u1',
+        name: 'Fertile Soil',
+        description: 'All plants produce 25% more Chi.',
+        cost: 500,
+        unlocked: false,
+        productionMultiplier: 1.25,
+        affects: 'all',
+        isUnlocked: (state) => state.totalChi >= 250,
+    },
+    u2: {
+        id: 'u2',
+        name: 'Deep Roots',
+        description: 'Physical plants produce 50% more Chi.',
+        cost: 2500,
+        unlocked: false,
+        productionMultiplier: 1.5,
+        affects: 'physical',
+        isUnlocked: (state) => state.totalChi >= 1500,
+    },
+    u3: {
+        id: 'u3',
+        name: 'Spirit Bond',
+        description: 'Ethereal plants produce 50% more Chi.',
+        cost: 5000,
+        unlocked: false,
+        productionMultiplier: 1.5,
+        affects: 'ethereal',
+        isUnlocked: (state) => state.totalChi >= 3000,
+    },
+    u4: {
+        id: 'u4',
+        name: 'Harmonic Resonance',
+        description: 'Doubles all Chi production.',
+        cost: 50000,
+        unlocked: false,
+        productionMultiplier: 2,
+        affects: 'all',
+        isUnlocked: (state) => state.totalChi >= 25000,
+    },
+};
 
 export const initialAchievements: Record<string, Achievement> = {
     a1: {
