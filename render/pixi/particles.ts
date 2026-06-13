@@ -4,25 +4,21 @@ import { Emitter, upgradeConfig } from '@pixi/particle-emitter';
 import { logger } from '../../services/logger';
 
 
-// A simple particle texture
+// A simple particle texture (Pixi v8 Graphics API)
 const createParticleTexture = (app: PIXI.Application) => {
     const graphics = new PIXI.Graphics();
-    graphics.beginFill(0x99f6e4); // emerald-200
-    graphics.drawCircle(0, 0, 4);
-    graphics.endFill();
+    graphics.circle(0, 0, 4).fill(0x99f6e4); // emerald-200
     return app.renderer.generateTexture(graphics);
 };
 
-export const createParticleEmitter = (stage: PIXI.Container) => {
-    if (!(stage.parent instanceof PIXI.Application)) {
-        logger.warn("Could not create particle emitter: stage has no parent application.");
-        return;
-    }
-    const app = stage.parent;
+export const createParticleEmitter = (app: PIXI.Application) => {
+    const stage = app.stage;
     const particleTexture = createParticleTexture(app);
 
     const emitter = new Emitter(
-        stage,
+        // @pixi/particle-emitter ships Pixi v7 typings; the container is runtime-compatible.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        stage as any,
         upgradeConfig({
             "alpha": {
                 "start": 0.6,

@@ -15,7 +15,7 @@ const TopBar: React.FC<TopBarProps> = ({ onSettingsClick }) => {
     return (
         <header className="bg-slate-950/50 backdrop-blur-sm p-4 sticky top-0 z-20 shadow-lg">
             <div className="container mx-auto flex justify-between items-center">
-                <h1 className="text-2xl font-bold text-emerald-300">Zen Garden</h1>
+                <h1 className="text-2xl font-bold text-emerald-300">Roots of the Earth</h1>
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full">
                         <LeafIcon className="w-5 h-5 text-emerald-400" />

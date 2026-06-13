@@ -1,5 +1,6 @@
 // components/DevMenu.tsx
 import React from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from '../store/gameStore';
 import { formatNumber } from '../utils/format';
 
@@ -8,10 +9,9 @@ interface DevMenuProps {
 }
 
 const DevMenu: React.FC<DevMenuProps> = ({ onClose }) => {
-    const { chi, actions } = useGameStore(state => ({
-        chi: state.chi,
+    const { actions } = useGameStore(useShallow(state => ({
         actions: state.actions,
-    }));
+    })));
 
     const chiAmounts = [1000, 1e6, 1e9, 1e12];
 

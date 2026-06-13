@@ -9,25 +9,34 @@ const PixiBackground: React.FC = () => {
         const allowPixi = !getFlag('noPixi');
 
     useEffect(() => {
-        if (!allowPixi) {
+        if (!allowPixi || !canvasRef.current) {
             return;
         }
 
-       if (canvasRef.current) {
-            try {
-                const app = initPixi(canvasRef.current);
-                if (app) {
-                    markBootStepSuccess('E', 'Pixi stage ready');
-                    return () => {
-                        cleanupPixi(app);
-                    };
+        let app: Awaited<ReturnType<typeof initPixi>> = null;
+        let cancelled = false;
+
+        initPixi(canvasRef.current)
+            .then((createdApp) => {
+                if (cancelled) {
+                    // Component unmounted before init resolved.
+                    if (createdApp) cleanupPixi(createdApp);
+                    return;
                 }
-                markBootStepSuccess('E', 'Pixi initialisation skipped');
-            } catch (error) {
+                app = createdApp;
+                markBootStepSuccess('E', app ? 'Pixi stage ready' : 'Pixi initialisation skipped');
+            })
+            .catch((error) => {
                 markBootStepError('E', 'Pixi failed to initialise');
                 recordLastError(error);
+            });
+
+        return () => {
+            cancelled = true;
+            if (app) {
+                cleanupPixi(app);
             }
-        }
+        };
     }, [allowPixi]);
 
     if (!allowPixi) {

@@ -31,7 +31,7 @@ describe('safe mode flags', () => {
 
         const { initPixi } = await import('../../render/pixi/stage');
         const container = document.createElement('div');
-        const app = initPixi(container);
+        const app = await initPixi(container);
         expect(app).toBeNull();
 
         const { audioService } = await import('../../services/audio');

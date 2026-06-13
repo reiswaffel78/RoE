@@ -1,4 +1,6 @@
-/* Global styles placeholder to satisfy Vite build */
+/* Tailwind CSS v4 */
+@import "tailwindcss";
+
 :root {
   color-scheme: dark;
 }

@@ -1,5 +1,6 @@
 // components/SpiritDialog.tsx
 import React, { useEffect } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from '../store/gameStore';
 import { generateSpiritMessage } from '../services/ai/gemini';
 import { useDynamicText } from '../hooks/useDynamicText';
@@ -7,7 +8,7 @@ import { formatNumber } from '../utils/format';
 import type { Plant } from '../types';
 
 const SpiritDialog: React.FC = () => {
-    const gameState = useGameStore(state => ({ chi: state.chi, balance: state.balance, plants: state.plants }));
+    const gameState = useGameStore(useShallow(state => ({ chi: state.chi, balance: state.balance, plants: state.plants })));
     const { text, isLoading, generateText } = useDynamicText(generateSpiritMessage);
 
     useEffect(() => {

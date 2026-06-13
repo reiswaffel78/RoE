@@ -69,6 +69,7 @@ export interface OfflineReport {
 }
 
 export interface GameState {
+    version: string;
     chi: number;
     balance: number; // 0 (physical) to 100 (ethereal)
     plants: Record<string, Plant>;
@@ -104,4 +105,5 @@ export interface GameActions {
 // The complete store shape
 export type GameStore = GameState & {
     actions: GameActions;
+    hydrated: boolean;
 };

@@ -1,5 +1,6 @@
 // App.tsx
 import React, { useState, useEffect } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from './store/gameStore';
 import { useGameLoop } from './hooks/useGameLoop';
 import TopBar from './components/TopBar';
@@ -20,12 +21,12 @@ import { useServiceWorker } from './hooks/useServiceWorker';
 import DevMenu from './components/DevMenu';
 
 const App: React.FC = () => {
-    const { currentEvent, offlineReport, actions, hydrated } = useGameStore(state => ({
+    const { currentEvent, offlineReport, actions, hydrated } = useGameStore(useShallow(state => ({
         currentEvent: state.currentEvent,
         offlineReport: state.offlineReport,
         actions: state.actions,
         hydrated: state.hydrated,
-    }));
+    })));
 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isDevMenuOpen, setIsDevMenuOpen] = useState(false);

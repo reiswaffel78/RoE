@@ -6,13 +6,15 @@ import { markBootStepError, markBootStepSuccess, recordBootWarning } from '../..
 
 const cleanupRegistry = new WeakMap<Application, () => void>();
 
-export const initPixi = (container: HTMLElement): Application | null => {
+export const initPixi = async (container: HTMLElement): Promise<Application | null> => {
     if (getFlag('noPixi')) {
         return null;
     }
 
     try {
-        const app = new Application({
+        // Pixi v8: construct, then `await app.init(options)`.
+        const app = new Application();
+        await app.init({
             width: window.innerWidth,
             height: window.innerHeight,
             backgroundAlpha: 0,
@@ -23,7 +25,7 @@ export const initPixi = (container: HTMLElement): Application | null => {
             antialias: true,
         });
 
-        const canvas = app.view as HTMLCanvasElement;
+        const canvas = app.canvas;
         canvas.style.position = 'absolute';
         canvas.style.top = '0';
         canvas.style.left = '0';
@@ -35,7 +37,7 @@ export const initPixi = (container: HTMLElement): Application | null => {
         container.appendChild(canvas);
 
         try {
-            createParticleEmitter(app.stage);
+            createParticleEmitter(app);
         } catch (particleError) {
             recordBootWarning('Pixi particles disabled');
             console.warn('Failed to initialise Pixi particles', particleError);
@@ -55,7 +57,7 @@ export const initPixi = (container: HTMLElement): Application | null => {
         const handleContextRestored = () => {
             try {
                 app.stage.removeChildren();
-                createParticleEmitter(app.stage);
+                createParticleEmitter(app);
                 markBootStepSuccess('E', 'Pixi context restored');
             } catch (error) {
                 recordBootWarning('Pixi context restore failed');

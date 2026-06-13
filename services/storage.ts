@@ -12,7 +12,18 @@ export const exportGameData = () => {
         alert("No game data found to export.");
         return;
     }
-    const blob = new Blob([stateString], { type: 'application/json' });
+    // Zustand's persist middleware stores `{ state, version }`. Export the inner
+    // GameState so the file matches what `importGameData` expects.
+    let exportString = stateString;
+    try {
+        const parsed = JSON.parse(stateString);
+        if (parsed && typeof parsed === 'object' && 'state' in parsed) {
+            exportString = JSON.stringify(parsed.state);
+        }
+    } catch {
+        // Fall back to the raw string if it cannot be parsed.
+    }
+    const blob = new Blob([exportString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -35,9 +46,13 @@ export const importGameData = (event: React.ChangeEvent<HTMLInputElement>, impor
         try {
             const result = e.target?.result;
             if (typeof result === 'string') {
-                const newState = JSON.parse(result) as GameState;
+                const parsed = JSON.parse(result);
+                // Accept both a flat GameState and a zustand-persisted `{ state, version }` wrapper.
+                const newState = (parsed && typeof parsed === 'object' && 'state' in parsed
+                    ? parsed.state
+                    : parsed) as GameState;
                 // Basic validation
-                if (newState.chi !== undefined && newState.plants !== undefined) {
+                if (newState && newState.chi !== undefined && newState.plants !== undefined) {
                     if (window.confirm("Are you sure you want to import this save? Your current progress will be overwritten.")) {
                         importState(newState);
                         alert("Game data imported successfully!");
