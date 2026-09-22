@@ -1,58 +1,87 @@
-// Art direction: hand-tuned palettes for four times of day, graded per zone,
-// weather and garden balance. Everything the scene draws is tinted from here.
+// Art direction: flat, atmospheric illustration. Each zone owns one muted,
+// near-monochrome mood (day + night). Landscape layers take their colour from
+// atmospheric perspective: far layers dissolve into the haze, near layers sink
+// into the zone's deepest tone.
 
 import type { WeatherKind, ZoneId } from '../../core';
 import { hex, mix, scale } from './color';
 
 export interface Palette {
     skyTop: number;
-    skyMid: number;
-    horizon: number;
+    skyBottom: number;
     sun: number;
-    cloud: number;
-    far: number;
-    mid: number;
-    near: number;
+    /** atmosphere colour far layers fade into */
+    haze: number;
+    /** darkest silhouette tone (nearest layers) */
+    deep: number;
     ground: number;
-    fog: number;
-    /** ambient light multiplied onto plants and props */
-    light: number;
-    /** rim/accent light for glows */
+    water: number;
+    /** zone accent (snow, rune glow, blossoms …) */
     accent: number;
+    /** ambient light multiplied onto plants */
+    light: number;
+    /** colour of the heart tree's crown */
+    foliage: number;
 }
 
-const P = (p: Record<keyof Palette, string>): Palette =>
+type PaletteHex = Record<keyof Palette, string>;
+
+const P = (p: PaletteHex): Palette =>
     Object.fromEntries(Object.entries(p).map(([k, v]) => [k, hex(v)])) as unknown as Palette;
 
-const DAWN = P({
-    skyTop: '#2c3566', skyMid: '#b46f86', horizon: '#f7bf8a', sun: '#ffcf96', cloud: '#f2a7a0',
-    far: '#7a6c8e', mid: '#4a4a66', near: '#2d3148', ground: '#1b1f31', fog: '#e9a996', light: '#ffd8c4', accent: '#ffb38a',
-});
-const DAY = P({
-    skyTop: '#2a6a9c', skyMid: '#79b3cf', horizon: '#e4efd6', sun: '#fff3d1', cloud: '#ffffff',
-    far: '#7aa3b3', mid: '#467a70', near: '#2b5646', ground: '#1a372d', fog: '#cfe3dc', light: '#ffffff', accent: '#fff1c2',
-});
-const DUSK = P({
-    skyTop: '#261f4d', skyMid: '#9a4a78', horizon: '#f79a66', sun: '#ffab6b', cloud: '#e98a86',
-    far: '#5e4a74', mid: '#3a3152', near: '#241f38', ground: '#161427', fog: '#c9787f', light: '#ffc0a3', accent: '#ff9a6b',
-});
-const NIGHT = P({
-    skyTop: '#03061a', skyMid: '#0c1636', horizon: '#1d3257', sun: '#cfe0ff', cloud: '#2b3b63',
-    far: '#1b2946', mid: '#121d35', near: '#0b1326', ground: '#070c19', fog: '#243860', light: '#7e92cc', accent: '#9fc0ff',
-});
+const DAY: Record<ZoneId, Palette> = {
+    grove: P({
+        skyTop: '#a3b38c', skyBottom: '#dcd8a8', sun: '#f3e8bb', haze: '#a2b189', deep: '#1c3123',
+        ground: '#294430', water: '#c6cda3', accent: '#d9c27c', light: '#eef0dc', foliage: '#6f8f5c',
+    }),
+    desert: P({
+        skyTop: '#c46a40', skyBottom: '#eaa465', sun: '#f7d79c', haze: '#d48853', deep: '#461e15',
+        ground: '#7e3f24', water: '#efbd86', accent: '#3d5a3c', light: '#ffe6c8', foliage: '#8f7a45',
+    }),
+    rainforest: P({
+        skyTop: '#244c52', skyBottom: '#6c9a92', sun: '#cfe3d6', haze: '#5c8a83', deep: '#0b2224',
+        ground: '#153935', water: '#a4d2c9', accent: '#d6768c', light: '#d6ede5', foliage: '#3f7a64',
+    }),
+    mountains: P({
+        skyTop: '#6b82a5', skyBottom: '#b8c6d6', sun: '#f3ecd4', haze: '#93a8c0', deep: '#152336',
+        ground: '#26374e', water: '#c6d4e0', accent: '#e8edf2', light: '#eef2f7', foliage: '#4f6a70',
+    }),
+    aurora: P({
+        skyTop: '#28305f', skyBottom: '#8f7cae', sun: '#efe7f2', haze: '#7475a8', deep: '#11152f',
+        ground: '#1c2244', water: '#8a8dc2', accent: '#62f0b5', light: '#dcdcf2', foliage: '#4c5c8a',
+    }),
+    dreamworld: P({
+        skyTop: '#48337a', skyBottom: '#cf93c6', sun: '#fbe4f1', haze: '#a37abb', deep: '#281644',
+        ground: '#3b265d', water: '#e0b6de', accent: '#f4bcd9', light: '#fae8f6', foliage: '#e7b3d2',
+    }),
+};
 
-/** Keyframes over the day phase (0 = sunrise, 0.25 noon, 0.5 sunset, 0.75 midnight). */
-const KEYS: [number, Palette][] = [
-    [0.0, DAWN],
-    [0.1, DAY],
-    [0.4, DAY],
-    [0.5, DUSK],
-    [0.58, NIGHT],
-    [0.92, NIGHT],
-    [1.0, DAWN],
-];
+const NIGHT_SKY = hex('#060a1d');
+const NIGHT_HORIZON = hex('#1a2247');
+const NIGHT_HAZE = hex('#1c2646');
 
-const keys = Object.keys(DAY) as (keyof Palette)[];
+/** Night: same mood, sunk into blue darkness; the sun becomes a pale moon. */
+const nightOf = (p: Palette, zone: ZoneId): Palette => {
+    const keep = zone === 'aurora' || zone === 'dreamworld' ? 0.35 : 0.2;
+    return {
+        skyTop: mix(NIGHT_SKY, p.skyTop, keep * 0.6),
+        skyBottom: mix(NIGHT_HORIZON, p.skyBottom, keep),
+        sun: hex('#e8ecfb'),
+        haze: mix(NIGHT_HAZE, p.haze, keep),
+        deep: mix(hex('#03050d'), p.deep, 0.45),
+        ground: mix(hex('#070b18'), p.ground, 0.35),
+        water: mix(hex('#243058'), p.water, keep),
+        accent: zone === 'aurora' ? p.accent : scale(p.accent, 0.55),
+        light: mix(hex('#7d8cbf'), p.light, 0.15),
+        foliage: mix(hex('#1b2544'), p.foliage, 0.35),
+    };
+};
+
+const NIGHT: Record<ZoneId, Palette> = Object.fromEntries(
+    (Object.keys(DAY) as ZoneId[]).map((z) => [z, nightOf(DAY[z], z)]),
+) as Record<ZoneId, Palette>;
+
+const keys = Object.keys(DAY.grove) as (keyof Palette)[];
 
 export const lerpPalette = (a: Palette, b: Palette, t: number): Palette => {
     const out = {} as Palette;
@@ -60,88 +89,66 @@ export const lerpPalette = (a: Palette, b: Palette, t: number): Palette => {
     return out;
 };
 
-export const paletteAt = (phase: number): Palette => {
-    for (let i = 0; i < KEYS.length - 1; i++) {
-        const [p0, a] = KEYS[i];
-        const [p1, b] = KEYS[i + 1];
-        if (phase >= p0 && phase <= p1) {
-            const t = p1 === p0 ? 0 : (phase - p0) / (p1 - p0);
-            return lerpPalette(a, b, t * t * (3 - 2 * t));
-        }
-    }
-    return DAWN;
-};
-
-/** Zone colour grading: how strongly sky and land are pulled towards a tint. */
-export interface ZoneGrade {
-    tint: number;
-    sky: number;
-    land: number;
-    fog: number;
-    /** additional aurora intensity at night */
-    aurora: number;
-    /** landscape silhouette style */
-    terrain: 'rolling' | 'hills' | 'hollow' | 'peaks';
-}
-
-export const ZONE_GRADES: Record<ZoneId, ZoneGrade> = {
-    grove: { tint: hex('#5fae8e'), sky: 0.0, land: 0.08, fog: 0.05, aurora: 0, terrain: 'rolling' },
-    meadow: { tint: hex('#f3b45a'), sky: 0.14, land: 0.2, fog: 0.25, aurora: 0, terrain: 'hills' },
-    hollow: { tint: hex('#8a6de0'), sky: 0.22, land: 0.3, fog: 0.35, aurora: 0.15, terrain: 'hollow' },
-    peaks: { tint: hex('#7fd6ef'), sky: 0.12, land: 0.18, fog: 0.2, aurora: 0.45, terrain: 'peaks' },
-};
-
-const RAIN_TINT = hex('#56657a');
-const MIST_TINT = hex('#b7a9d6');
-const GOLD = hex('#f5c46b');
-const VIOLET = hex('#9b7cf0');
+const WARM_SKY = hex('#eb9a6c');
+const WARM_LIGHT = hex('#ffcfae');
+const RAIN = hex('#5d6a78');
 
 export interface GradeInput {
-    phase: number;
-    zone: ZoneGrade;
+    zone: ZoneId;
+    /** 0 night … 1 full day */
+    daylight: number;
+    /** sun elevation −1 … 1 (dawn/dusk warmth peaks near 0) */
+    elevation: number;
     weather: Record<WeatherKind, number>;
-    /** -1 (earth) .. 1 (dream) */
+    /** −1 earth … 1 dream */
     balanceTilt: number;
 }
 
-export const gradePalette = ({ phase, zone, weather, balanceTilt }: GradeInput): Palette => {
-    const base = paletteAt(phase);
-    const out = { ...base };
-    const skyKeys: (keyof Palette)[] = ['skyTop', 'skyMid', 'horizon', 'cloud'];
-    const landKeys: (keyof Palette)[] = ['far', 'mid', 'near', 'ground'];
-    for (const k of skyKeys) out[k] = mix(out[k], zone.tint, zone.sky);
-    for (const k of landKeys) out[k] = mix(out[k], zone.tint, zone.land * (k === 'ground' ? 0.5 : 1));
-    out.fog = mix(out.fog, zone.tint, zone.fog);
+export const scenePalette = ({ zone, daylight, elevation, weather, balanceTilt }: GradeInput): Palette => {
+    const p = lerpPalette(NIGHT[zone], DAY[zone], daylight);
 
-    // Balance gives the whole world a gentle golden or violet cast.
-    const cast = balanceTilt < 0 ? GOLD : VIOLET;
-    const castAmount = Math.abs(balanceTilt) * 0.1;
-    for (const k of [...skyKeys, ...landKeys, 'fog' as const]) out[k] = mix(out[k], cast, castAmount);
+    // Golden hour: a warm veil when the sun crosses the horizon.
+    const warmth = Math.exp(-Math.pow(elevation / 0.28, 2)) * 0.55;
+    if (warmth > 0.01) {
+        p.skyBottom = mix(p.skyBottom, WARM_SKY, warmth);
+        p.skyTop = mix(p.skyTop, WARM_SKY, warmth * 0.25);
+        p.haze = mix(p.haze, WARM_SKY, warmth * 0.35);
+        p.sun = mix(p.sun, hex('#ffc78f'), warmth);
+        p.light = mix(p.light, WARM_LIGHT, warmth * 0.7);
+    }
 
-    // Weather grading.
-    const rain = weather.rain;
-    if (rain > 0) {
-        for (const k of skyKeys) out[k] = mix(out[k], scale(RAIN_TINT, 0.6 + 0.4 * lum(phase)), rain * 0.55);
-        for (const k of landKeys) out[k] = mix(out[k], scale(out[k], 0.75), rain * 0.6);
-        out.light = mix(out.light, hex('#b9c4d6'), rain * 0.4);
-        out.sun = mix(out.sun, out.skyMid, rain * 0.7);
+    // Rain: grey and heavy; mist: everything recedes into the haze.
+    if (weather.rain > 0.01) {
+        const r = weather.rain;
+        p.skyTop = mix(p.skyTop, scale(RAIN, 0.5 + 0.5 * daylight), r * 0.5);
+        p.skyBottom = mix(p.skyBottom, scale(RAIN, 0.6 + 0.5 * daylight), r * 0.45);
+        p.haze = mix(p.haze, scale(RAIN, 0.6 + 0.4 * daylight), r * 0.35);
+        p.sun = mix(p.sun, p.skyBottom, r * 0.8);
+        p.light = mix(p.light, hex('#b8c2cf'), r * 0.35);
     }
-    const mist = weather.mist;
-    if (mist > 0) {
-        out.fog = mix(out.fog, MIST_TINT, mist * 0.4);
-        for (const k of ['far', 'mid'] as const) out[k] = mix(out[k], out.fog, mist * 0.45);
+    if (weather.mist > 0.01) {
+        p.haze = mix(p.haze, mix(p.skyBottom, 0xffffff, 0.15), weather.mist * 0.35);
     }
-    const aurora = weather.aurora;
-    if (aurora > 0) {
-        out.skyMid = mix(out.skyMid, hex('#0f3a4a'), aurora * 0.5);
-        out.horizon = mix(out.horizon, hex('#1d5a5a'), aurora * 0.4);
-        out.light = mix(out.light, hex('#9cf2d6'), aurora * 0.3);
-        out.accent = mix(out.accent, hex('#7dffcf'), aurora * 0.6);
+    if (weather.aurora > 0.01) {
+        p.skyBottom = mix(p.skyBottom, hex('#2b3f6a'), weather.aurora * 0.35);
+        p.water = mix(p.water, hex('#3f8f86'), weather.aurora * 0.35);
     }
-    return out;
+
+    // Balance: the faintest golden or violet cast over the world.
+    const cast = balanceTilt < 0 ? hex('#e8bf72') : hex('#a48bf0');
+    const amount = Math.abs(balanceTilt) * 0.07;
+    p.skyBottom = mix(p.skyBottom, cast, amount);
+    p.haze = mix(p.haze, cast, amount);
+    return p;
 };
 
-const lum = (phase: number) => {
-    const e = Math.sin(phase * Math.PI * 2);
-    return Math.max(0, Math.min(1, e + 0.2));
+/**
+ * Atmospheric perspective: depth 0 = on the horizon, 1 = right in front.
+ * Mist pushes everything further back into the haze.
+ */
+export const layerColor = (p: Palette, depth: number, mist = 0): number => {
+    const d = Math.max(0, Math.min(1, depth * (1 - mist * 0.35)));
+    return mix(p.haze, p.deep, Math.pow(d, 1.15));
 };
+
+export const nightFactor = (daylight: number) => 1 - daylight;

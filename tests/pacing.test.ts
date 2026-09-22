@@ -22,7 +22,7 @@ describe('pacing (headless bot, PDR §30 corridors)', () => {
     });
 
     it('opens the first new zone in under 45 minutes', () => {
-        expect(at('zone:meadow')).toBeLessThan(45 * 60);
+        expect(at('zone:desert')).toBeLessThan(45 * 60);
     });
 
     it('makes the first cycle (prestige) available within 1–3 hours', () => {

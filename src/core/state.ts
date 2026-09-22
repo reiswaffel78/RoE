@@ -5,7 +5,7 @@ import { ACHIEVEMENT_BY_ID } from './content/achievements';
 import { PERK_BY_ID } from './content/perks';
 import { PLANT_IDS } from './content/plants';
 import { UPGRADE_BY_ID } from './content/upgrades';
-import { WEATHER, ZONE_BY_ID } from './content/world';
+import { LEGACY_ZONES, WEATHER, ZONE_BY_ID } from './content/world';
 import { EVENT_BY_ID } from './content/events';
 import { clamp } from './math';
 import { seedFromTime } from './rng';
@@ -132,9 +132,12 @@ export const normalizeState = (raw: unknown, now = Date.now()): GameState => {
     if (isObject(raw.plants)) {
         for (const id of PLANT_IDS) plants[id] = Math.floor(num(raw.plants[id], 0, 0, 100_000));
     }
-    const zones = strArray(raw.zones, (id) => id in ZONE_BY_ID) as ZoneId[];
+    const migrateZone = (id: unknown) => (typeof id === 'string' ? (LEGACY_ZONES[id] ?? id) : id);
+    const zoneList = Array.isArray(raw.zones) ? raw.zones.map(migrateZone) : [];
+    const zones = strArray(zoneList, (id) => id in ZONE_BY_ID) as ZoneId[];
     if (!zones.includes('grove')) zones.unshift('grove');
-    const zone = typeof raw.zone === 'string' && zones.includes(raw.zone as ZoneId) ? (raw.zone as ZoneId) : 'grove';
+    const rawZone = migrateZone(raw.zone);
+    const zone = typeof rawZone === 'string' && zones.includes(rawZone as ZoneId) ? (rawZone as ZoneId) : 'grove';
     const worldTime = num(raw.worldTime, base.worldTime);
 
     const weatherRaw = isObject(raw.weather) ? raw.weather : {};

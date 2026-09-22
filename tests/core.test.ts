@@ -71,8 +71,8 @@ describe('economy', () => {
     });
 
     it('zones change essence output', () => {
-        const s = fresh({ plants: { ...fresh().plants, lotus: 20 }, zones: ['grove', 'meadow'] });
-        expect(computeRates({ ...s, zone: 'meadow' }).cps).toBeGreaterThan(computeRates(s).cps);
+        const s = fresh({ plants: { ...fresh().plants, lotus: 20 }, zones: ['grove', 'desert'] });
+        expect(computeRates({ ...s, zone: 'desert' }).cps).toBeGreaterThan(computeRates(s).cps);
     });
 
     it('ancestral wisdom multiplies production', () => {
@@ -181,10 +181,10 @@ describe('actions', () => {
 
     it('zones unlock and travel', () => {
         const s = fresh({ chi: 30_000 });
-        const r = unlockZone(s, 'meadow');
-        expect(r.ok && r.state.zone === 'meadow').toBe(true);
+        const r = unlockZone(s, 'desert');
+        expect(r.ok && r.state.zone === 'desert').toBe(true);
         expect(travel(r.state, 'grove').state.zone).toBe('grove');
-        expect(travel(r.state, 'peaks').reason).toBe('locked');
+        expect(travel(r.state, 'aurora').reason).toBe('locked');
     });
 
     it('events resolve with their outcome', () => {
@@ -222,6 +222,12 @@ describe('persistence', () => {
         expect(restored.chi).toBeCloseTo(s.chi);
         expect(restored.plants).toEqual(s.plants);
         expect(restored.weather).toEqual(s.weather);
+    });
+
+    it('migrates first-release zone ids', () => {
+        const s = normalizeState({ schema: 2, zones: ['grove', 'meadow', 'peaks'], zone: 'peaks' });
+        expect(s.zones).toEqual(['grove', 'desert', 'aurora']);
+        expect(s.zone).toBe('aurora');
     });
 
     it('sanitises garbage', () => {

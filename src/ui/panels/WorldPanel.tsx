@@ -18,27 +18,35 @@ export const timeOfDayKey = (phase: number) => {
     return 'night';
 };
 
-const ZONE_ART: Record<ZoneId, { sky: [string, string]; hills: string[]; peaks?: boolean }> = {
-    grove: { sky: ['#2a6a9c', '#cfe8d8'], hills: ['#6f9fa6', '#3f7466', '#244b3d'] },
-    meadow: { sky: ['#4b86b8', '#ffe2a6'], hills: ['#c9b27a', '#8aa653', '#56793a'] },
-    hollow: { sky: ['#2b2458', '#b79be0'], hills: ['#6b5c9e', '#46407a', '#2a2750'] },
-    peaks: { sky: ['#07122e', '#1f5a6a'], hills: ['#8fb7d6', '#4a6f93', '#223a58'], peaks: true },
+/** Flat mini illustrations matching each zone's palette and motif. */
+const ZONE_ART: Record<ZoneId, { sky: [string, string]; sun: string; layers: string[]; motif: string }> = {
+    grove: { sky: ['#a3b38c', '#dcd8a8'], sun: '#f3e8bb', layers: ['#8fa07a', '#5b7454', '#2c4632', '#1c3123'], motif: 'lake' },
+    desert: { sky: ['#c46a40', '#eaa465'], sun: '#f7d79c', layers: ['#d48853', '#a9562f', '#7e3f24', '#461e15'], motif: 'mesa' },
+    rainforest: { sky: ['#244c52', '#6c9a92'], sun: '#cfe3d6', layers: ['#5c8a83', '#3d6b66', '#1f4643', '#0b2224'], motif: 'waterfall' },
+    mountains: { sky: ['#6b82a5', '#b8c6d6'], sun: '#f3ecd4', layers: ['#93a8c0', '#6a809e', '#3a4e6a', '#152336'], motif: 'peaks' },
+    aurora: { sky: ['#0c1030', '#3b2c6e'], sun: '#e8ecfb', layers: ['#3d3a78', '#2a2a5c', '#1a1c40', '#0a0d24'], motif: 'stones' },
+    dreamworld: { sky: ['#48337a', '#cf93c6'], sun: '#fbe4f1', layers: ['#a37abb', '#7d5a9e', '#553c7d', '#281644'], motif: 'islands' },
 };
 
-/** Small illustrated vignette for a zone card (inline SVG). */
 const ZoneArt = ({ id }: { id: ZoneId }) => {
     const art = ZONE_ART[id];
     const gid = `zg-${id}`;
-    const ridge = (y: number, amp: number, seed: number) => {
+    const wave = (y: number, amp: number, freq: number, seed: number) => {
         let d = `M0 ${y}`;
-        for (let x = 0; x <= 400; x += 20) {
-            const h = art.peaks && seed === 0 ? Math.abs(Math.sin(x * 0.03 + seed)) * amp * 1.8 : Math.sin(x * 0.02 + seed * 2) * amp;
-            d += ` L${x} ${y - h}`;
+        for (let x = 0; x <= 400; x += 10) d += ` L${x} ${(y - Math.sin(x * freq + seed) * amp - Math.sin(x * freq * 2.3 + seed) * amp * 0.4).toFixed(1)}`;
+        return `${d} L400 100 L0 100 Z`;
+    };
+    const peaks = (y: number, h: number, seed: number) => {
+        let d = `M0 ${y}`;
+        for (let i = 0; i <= 8; i++) {
+            const x = i * 50;
+            d += ` L${x + 25} ${y - h * (0.5 + 0.5 * Math.abs(Math.sin(i * 1.7 + seed)))} L${x + 50} ${y}`;
         }
         return `${d} L400 100 L0 100 Z`;
     };
+    const night = id === 'aurora';
     return (
-        <svg viewBox="0 0 400 100" preserveAspectRatio="none" aria-hidden="true">
+        <svg viewBox="0 0 400 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
             <defs>
                 <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0" stopColor={art.sky[0]} />
@@ -46,14 +54,37 @@ const ZoneArt = ({ id }: { id: ZoneId }) => {
                 </linearGradient>
             </defs>
             <rect width="400" height="100" fill={`url(#${gid})`} />
-            {id === 'peaks' && (
-                <path d="M0 30 C 80 10, 160 45, 240 20 S 360 30, 400 15" stroke="#6fffc8" strokeOpacity="0.55" strokeWidth="6" fill="none" />
+            {night && <path d="M40 40 C 120 10, 180 50, 260 18 S 360 30, 400 12" stroke="#62f0b5" strokeOpacity="0.45" strokeWidth="10" fill="none" />}
+            <circle cx={id === 'desert' ? 300 : 290} cy="34" r={id === 'desert' ? 20 : 14} fill={art.sun} opacity="0.95" />
+            {art.motif === 'peaks' ? (
+                <>
+                    <path d={peaks(70, 48, 0)} fill={art.layers[0]} />
+                    <path d={peaks(82, 24, 2)} fill={art.layers[1]} />
+                </>
+            ) : (
+                <path d={wave(62, 6, 0.02, 1)} fill={art.layers[0]} />
             )}
-            {id === 'hollow' && <rect y="45" width="400" height="30" fill="#d9c9ff" opacity="0.18" />}
-            <circle cx={id === 'peaks' ? 320 : 300} cy="26" r="10" fill={id === 'peaks' || id === 'hollow' ? '#e8efff' : '#fff6d8'} opacity="0.9" />
-            <path d={ridge(62, 10, 0)} fill={art.hills[0]} />
-            <path d={ridge(78, 7, 1)} fill={art.hills[1]} />
-            <path d={ridge(92, 5, 2)} fill={art.hills[2]} />
+            {art.motif === 'mesa' && (
+                <>
+                    <path d="M40 72 L52 40 L96 40 L106 72 Z M300 72 L306 30 L318 22 L326 72 Z" fill={art.layers[1]} />
+                    <path d="M230 80 L236 44 L292 42 L300 80 L286 80 L270 58 L252 58 L244 80 Z" fill={art.layers[2]} />
+                </>
+            )}
+            {art.motif === 'waterfall' && (
+                <>
+                    <path d="M230 90 L240 30 L400 24 L400 90 Z" fill={art.layers[1]} />
+                    <rect x="290" y="28" width="16" height="58" fill="#a4d2c9" opacity="0.9" />
+                </>
+            )}
+            {art.motif === 'stones' && (
+                <path d="M60 74 L64 50 L72 48 L76 74 Z M120 74 L123 58 L130 57 L133 74 Z M250 74 L254 42 L264 40 L268 74 Z M330 74 L333 56 L340 55 L343 74 Z" fill={art.layers[1]} />
+            )}
+            {art.motif === 'islands' && (
+                <path d="M60 40 L110 40 L92 62 L80 70 Z M260 30 L300 30 L286 48 L276 54 Z M170 52 L196 52 L186 64 Z" fill={art.layers[1]} />
+            )}
+            {(art.motif === 'lake' || art.motif === 'stones') && <rect y="74" width="400" height="10" fill={art.layers[0]} opacity="0.45" />}
+            <path d={wave(86, 3, 0.03, 3)} fill={art.layers[2]} />
+            <path d={wave(96, 2, 0.05, 5)} fill={art.layers[3]} />
         </svg>
     );
 };
@@ -134,6 +165,7 @@ export const WorldPanel = () => {
                                     <span className="zone__name">{t(`zones.${zone.id}.name`)}</span>
                                     {current && <span className="chip chip--neutral">{t('zones.current')}</span>}
                                 </div>
+                                <div className="zone__tagline">{t(`zones.${zone.id}.tagline`)}</div>
                                 <div className="zone__desc">{t(`zones.${zone.id}.desc`)}</div>
                                 <div className="zone__mods">
                                     <span className="chip chip--earth">

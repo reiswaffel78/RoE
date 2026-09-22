@@ -10,11 +10,16 @@ export interface ZoneDef {
 }
 
 export const ZONES: ZoneDef[] = [
-    { id: 'grove', cost: 0, physical: 1, ethereal: 1, harmony: 1, weather: { clear: 6, rain: 2, mist: 2, aurora: 0.6 } },
-    { id: 'meadow', cost: 25_000, physical: 1.35, ethereal: 0.9, harmony: 1, weather: { clear: 7, rain: 3, mist: 0.6, aurora: 0.3 } },
-    { id: 'hollow', cost: 2_000_000, physical: 0.9, ethereal: 1.35, harmony: 1, weather: { clear: 3, rain: 2, mist: 6, aurora: 0.6 } },
-    { id: 'peaks', cost: 300_000_000, physical: 1.15, ethereal: 1.15, harmony: 1.6, weather: { clear: 4, rain: 1, mist: 2, aurora: 4 } },
+    { id: 'grove', cost: 0, physical: 1, ethereal: 1, harmony: 1, weather: { clear: 6, rain: 2, mist: 2, aurora: 0.5 } },
+    { id: 'desert', cost: 25_000, physical: 1.35, ethereal: 0.85, harmony: 0.9, weather: { clear: 10, rain: 0.4, mist: 0.4, aurora: 0.3 } },
+    { id: 'rainforest', cost: 750_000, physical: 1.3, ethereal: 1.1, harmony: 1.1, weather: { clear: 2, rain: 7, mist: 3, aurora: 0.2 } },
+    { id: 'mountains', cost: 20_000_000, physical: 1.2, ethereal: 1.2, harmony: 1.25, weather: { clear: 5, rain: 1, mist: 4, aurora: 1 } },
+    { id: 'aurora', cost: 500_000_000, physical: 0.9, ethereal: 1.45, harmony: 1.5, weather: { clear: 4, rain: 0.5, mist: 1, aurora: 6 } },
+    { id: 'dreamworld', cost: 20_000_000_000, physical: 0.85, ethereal: 1.75, harmony: 1.7, weather: { clear: 3, rain: 0.5, mist: 6, aurora: 2 } },
 ];
+
+/** Zone ids of the first release, mapped to their closest successor. */
+export const LEGACY_ZONES: Record<string, ZoneId> = { meadow: 'desert', hollow: 'rainforest', peaks: 'aurora' };
 
 export const ZONE_BY_ID: Record<ZoneId, ZoneDef> = Object.fromEntries(ZONES.map((z) => [z.id, z])) as Record<
     ZoneId,

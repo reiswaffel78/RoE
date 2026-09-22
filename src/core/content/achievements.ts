@@ -103,8 +103,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     {
         id: 'wanderer',
         icon: 'map',
-        check: ({ state }) => state.zones.length >= 4,
-        progress: ({ state }) => ratio(state.zones.length, 4),
+        check: ({ state }) => state.zones.length >= 6,
+        progress: ({ state }) => ratio(state.zones.length, 6),
     },
     { id: 'aurora', icon: 'aurora', check: ({ state }) => state.stats.auroras >= 1 },
     { id: 'listener', icon: 'eye', check: ({ state }) => state.stats.eventsResolved >= 1 },

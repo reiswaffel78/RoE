@@ -1,16 +1,16 @@
-// The living garden: orchestrates sky, parallax landscape, flora, weather and
-// particle effects. Reads the game store every frame (no React involvement)
-// and reacts to fx events for juicy feedback.
+// The living garden, painted as a flat atmospheric illustration: shader sky,
+// layered zone silhouettes with haze, water, the tree of life and the player's
+// plants. Reads the game store every frame (no React) and reacts to fx events
+// with calm, understated feedback.
 
 // Eval-free code paths: required under strict Content-Security-Policies.
 import 'pixi.js/unsafe-eval';
 import { Application, Container, Sprite, Texture, TilingSprite } from 'pixi.js';
-import { AdvancedBloomFilter } from 'pixi-filters';
 import { PLANTS, getDayInfo, type PlantId, type WeatherKind, type ZoneId } from '../../core';
 import { useGameStore } from '../../store/gameStore';
 import { fx, type FxEvent } from '../../store/fx';
 import type { Quality } from '../../store/settingsStore';
-import { mix } from './color';
+import { mix, scale } from './color';
 import {
     paintFade,
     paintGlow,
@@ -22,19 +22,26 @@ import {
     paintRain,
     paintRing,
     paintSpark,
+    type HeartTree,
     type PaintedTexture,
 } from './flora';
-import { Landscape } from './landscape';
-import { ZONE_GRADES, gradePalette, type Palette } from './palette';
+import { layerColor, scenePalette, type Palette } from './palette';
 import { ParticleLayer, behaviours } from './particles';
 import { mulberry } from './procedural';
 import { Sky } from './sky';
+import { Terrain, type TerrainLayer } from './terrain';
 
 export interface Viewport {
     x: number;
     y: number;
     w: number;
     h: number;
+}
+
+export interface PlantPick {
+    id: PlantId;
+    x: number;
+    y: number;
 }
 
 interface PlantInstance {
@@ -46,35 +53,24 @@ interface PlantInstance {
     phase: number;
     born: number;
     depth: number;
-    ethereal: boolean;
 }
 
 const QUALITY = {
-    low: { resolution: 1, particles: 160, grass: 10, perPlant: 4, bloom: false, fireflies: 14 },
-    medium: { resolution: 1.5, particles: 420, grass: 18, perPlant: 6, bloom: false, fireflies: 28 },
-    high: { resolution: 2, particles: 800, grass: 26, perPlant: 7, bloom: true, fireflies: 42 },
+    low: { resolution: 1, particles: 140, grass: 8, perPlant: 2 },
+    medium: { resolution: 1.5, particles: 320, grass: 14, perPlant: 3 },
+    high: { resolution: 2, particles: 520, grass: 20, perPlant: 3 },
 } as const;
 
 const PLANT_SCALE: Record<PlantId, number> = {
-    lotus: 0.55,
-    fern: 0.6,
-    sunpetal: 0.62,
-    willow: 0.78,
-    oak: 0.85,
-    dreamwood: 0.85,
-    emberroot: 0.62,
-    starbloom: 0.72,
+    lotus: 0.5,
+    fern: 0.52,
+    sunpetal: 0.55,
+    willow: 0.66,
+    oak: 0.72,
+    dreamwood: 0.72,
+    emberroot: 0.55,
+    starbloom: 0.62,
     worldtree: 1,
-};
-
-const RITUAL_COLORS: Record<string, number> = {
-    meditation: 0xb79cff,
-    grounding: 0xffc070,
-    drums: 0xff8a5c,
-    offering: 0xfff1c2,
-    rainDance: 0x8fc8ff,
-    vigil: 0xcfe0ff,
-    spiritCall: 0x8dffcf,
 };
 
 const smooth = (current: number, target: number, rate: number, dt: number) =>
@@ -84,20 +80,21 @@ export class GardenScene {
     private app!: Application;
     private sky = new Sky();
     private world = new Container();
-    private landscape = new Landscape();
-    private fogBands: Sprite[] = [];
+    private terrain = new Terrain();
+    private fogBands = new Map<TerrainLayer, Sprite>();
     private mist: TilingSprite[] = [];
-    private groundShade!: Sprite;
+    private sunGlint!: Sprite;
     private garden = new Container();
     private grass = new Container();
     private fxLayer!: ParticleLayer;
     private ambient!: ParticleLayer;
     private weatherLayer!: ParticleLayer;
     private flash!: Sprite;
-    private tree!: Sprite;
+    private trunk!: Sprite;
+    private crown!: Sprite;
     private treeAura!: Sprite;
-    private treeGlows: { sprite: Sprite; base: number; phase: number }[] = [];
     private visitor!: Sprite;
+    private heart!: HeartTree;
 
     private tex!: {
         glow: Texture;
@@ -110,7 +107,6 @@ export class GardenScene {
         grass: Texture[];
         plants: Partial<Record<PlantId, PaintedTexture[]>>;
     };
-    private heartTexture: { crowned: boolean; painted: PaintedTexture } | null = null;
 
     private instances: PlantInstance[] = [];
     private viewport: Viewport = { x: 0, y: 0, w: 1, h: 1 };
@@ -124,11 +120,10 @@ export class GardenScene {
     private zone: ZoneId = 'grove';
     private transition = { active: false, t: 0, swapped: false, next: 'grove' as ZoneId };
     private treePulse = 0;
-    private shake = 0;
+    private treeBaseScale = 1;
     private chiTarget = { x: 60, y: 40 };
-    private spawnAcc = { firefly: 0, mote: 0, rain: 0, leaf: 0 };
+    private spawnAcc = { firefly: 0, mote: 0, rain: 0, leaf: 0, spray: 0 };
     private palette!: Palette;
-    private bloom: AdvancedBloomFilter | null = null;
     private lastPlants: unknown = null;
     private unsubscribe: (() => void)[] = [];
     private destroyed = false;
@@ -184,50 +179,44 @@ export class GardenScene {
             const variants = [0, 1].map((v) => paintPlant(plant.id, v)).filter((p): p is PaintedTexture => !!p);
             if (variants.length) this.tex.plants[plant.id] = variants;
         }
+        this.heart = paintHeartTree();
 
         this.fxLayer = new ParticleLayer(this.q.particles);
         this.ambient = new ParticleLayer(Math.round(this.q.particles * 0.4));
         this.weatherLayer = new ParticleLayer(this.q.particles);
 
-        const stage = app.stage;
-        stage.addChild(this.sky.mesh);
-        stage.addChild(this.world);
-
-        this.world.addChild(this.landscape.view);
-        for (let i = 0; i < 3; i++) {
-            const band = new Sprite(this.tex.fade);
-            this.fogBands.push(band);
-        }
         for (let i = 0; i < 2; i++) {
             const m = new TilingSprite({ texture: this.tex.mist, width: 100, height: 100 });
             m.alpha = 0;
             this.mist.push(m);
         }
-        this.groundShade = new Sprite(this.tex.fade);
+        this.sunGlint = new Sprite(this.tex.glow);
+        this.sunGlint.anchor.set(0.5, 0);
+        this.sunGlint.blendMode = 'add';
 
         this.treeAura = new Sprite(this.tex.glow);
         this.treeAura.anchor.set(0.5);
         this.treeAura.blendMode = 'add';
-        this.tree = new Sprite();
-        this.tree.anchor.set(0.5, 1);
+        this.trunk = new Sprite(this.heart.trunk);
+        this.trunk.anchor.set(0.5, 1);
+        this.crown = new Sprite(this.heart.crown);
+        this.crown.anchor.set(0.5, 1);
         this.visitor = new Sprite(this.tex.glow);
         this.visitor.anchor.set(0.5);
         this.visitor.blendMode = 'add';
         this.visitor.alpha = 0;
         this.garden.sortableChildren = true;
+        this.garden.addChild(this.treeAura, this.trunk, this.crown, this.visitor);
 
         this.flash = new Sprite(Texture.WHITE);
         this.flash.alpha = 0;
 
-        this.world.addChild(this.garden, this.grass);
-        stage.addChild(this.ambient.view, this.fxLayer.view, this.weatherLayer.view, this.flash);
+        app.stage.addChild(this.sky.mesh, this.world);
+        this.world.addChild(this.terrain.view);
+        app.stage.addChild(this.ambient.view, this.fxLayer.view, this.weatherLayer.view, this.flash);
 
-        this.applyQualityFilters();
-        const state = useGameStore.getState();
-        this.zone = state.game.zone;
-        this.landscape.build(ZONE_GRADES[this.zone].terrain, this.zoneSeed(this.zone));
-        this.rebuildLandscapeOrder();
-
+        this.zone = useGameStore.getState().game.zone;
+        this.buildTerrain();
         this.resize();
         app.renderer.on('resize', () => this.resize());
         app.ticker.add((ticker) => {
@@ -247,7 +236,6 @@ export class GardenScene {
         window.addEventListener('pointermove', onPointer, { passive: true });
         this.unsubscribe.push(() => window.removeEventListener('pointermove', onPointer));
         this.unsubscribe.push(fx.on((e) => this.onFx(e)));
-
         const canvas = app.canvas;
         const onLost = (e: Event) => e.preventDefault();
         canvas.addEventListener('webglcontextlost', onLost);
@@ -277,13 +265,26 @@ export class GardenScene {
         this.quality = quality;
         if (!this.app) return;
         this.app.renderer.resolution = Math.min(window.devicePixelRatio || 1, this.q.resolution);
-        this.applyQualityFilters();
         this.resize();
         this.syncPlants(true);
     }
 
     setReducedMotion(value: boolean) {
         this.reducedMotion = value;
+    }
+
+    /** Plant under a screen point (for the hover label), if any. */
+    pickPlant(x: number, y: number): PlantPick | null {
+        let best: PlantInstance | null = null;
+        for (const inst of this.instances) {
+            const b = inst.sprite.getBounds();
+            if (x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height) {
+                if (!best || inst.root.zIndex > best.root.zIndex) best = inst;
+            }
+        }
+        if (!best) return null;
+        const b = best.sprite.getBounds();
+        return { id: best.id, x: b.x + b.width / 2, y: b.y };
     }
 
     destroy() {
@@ -295,27 +296,30 @@ export class GardenScene {
 
     // ------------------------------------------------------------ layout
 
-    private zoneSeed(zone: ZoneId) {
-        return { grove: 11, meadow: 23, hollow: 37, peaks: 53 }[zone];
-    }
-
-    private rebuildLandscapeOrder() {
-        this.landscape.view.removeChildren();
-        this.landscape.layers.forEach((layer, i) => {
-            this.landscape.view.addChild(layer.view);
-            if (i < 2) this.landscape.view.addChild(this.mist[i]);
-            this.landscape.view.addChild(this.fogBands[i]);
-        });
-        this.landscape.view.addChild(this.groundShade);
-    }
-
-    private applyQualityFilters() {
-        if (this.q.bloom) {
-            this.bloom = this.bloom ?? new AdvancedBloomFilter({ threshold: 0.35, bloomScale: 0.9, brightness: 1, blur: 6, quality: 4 });
-            this.fxLayer.view.filters = [this.bloom];
-        } else {
-            this.fxLayer.view.filters = [];
+    private buildTerrain() {
+        this.terrain.build(this.zone);
+        this.fogBands.clear();
+        const view = this.terrain.view;
+        view.removeChildren();
+        let mistIndex = 0;
+        const front: TerrainLayer[] = [];
+        for (const layer of this.terrain.layers) {
+            // Frame silhouettes (and details on them) sit in front of the garden.
+            if (layer.role === 'frame' || (layer.depth >= 1 && layer.role !== 'land')) {
+                front.push(layer);
+                continue;
+            }
+            view.addChild(layer.view);
+            if (layer.fogAt !== null) {
+                const band = new Sprite(this.tex.fade);
+                this.fogBands.set(layer, band);
+                view.addChild(band);
+                if (mistIndex < this.mist.length && layer.depth < 0.5) view.addChild(this.mist[mistIndex++]);
+            }
+            if (layer.role === 'shimmer') view.addChild(this.sunGlint);
         }
+        view.addChild(this.garden, this.grass);
+        for (const layer of front) view.addChild(layer.view);
     }
 
     private resize() {
@@ -331,89 +335,62 @@ export class GardenScene {
 
     private layout() {
         const v = this.viewport;
-        const w = this.width;
-        this.landscape.layers.forEach((layer) => layer.draw(w, v.h, v.y));
-        this.landscape.layers.forEach((layer, i) => {
-            const band = this.fogBands[i];
-            const baseY = v.y + v.h * layer.spec.base;
-            band.width = w * 1.3;
-            band.x = -w * 0.15;
-            band.height = v.h * 0.16;
-            band.y = baseY - v.h * 0.06;
-        });
+        this.terrain.draw({ width: this.width, vx: v.x, vy: v.y, vw: v.w, vh: v.h });
+        for (const [layer, band] of this.fogBands) {
+            band.width = this.width * 1.4;
+            band.x = -this.width * 0.2;
+            band.height = v.h * 0.14;
+            band.y = v.y + v.h * (layer.fogAt ?? 0) - v.h * 0.11;
+        }
         this.mist.forEach((m, i) => {
-            const layer = this.landscape.layers[i + 1];
-            m.width = w * 1.3;
-            m.x = -w * 0.15;
-            m.height = v.h * 0.28;
-            m.y = v.y + v.h * layer.spec.base - v.h * 0.2;
+            m.width = this.width * 1.4;
+            m.x = -this.width * 0.2;
+            m.height = v.h * 0.3;
+            m.y = v.y + v.h * (0.44 + i * 0.12);
             m.tileScale.set(v.h / 520);
         });
-        this.groundShade.width = w * 1.3;
-        this.groundShade.x = -w * 0.15;
-        this.groundShade.y = v.y + v.h * 0.82;
-        this.groundShade.height = Math.max(this.height - this.groundShade.y, v.h * 0.2) + 40;
-
+        this.sunGlint.visible = this.terrain.layers.some((l) => l.role === 'water');
         this.layoutTree();
         this.layoutGrass();
         this.layoutPlants();
     }
 
-    private treeScale() {
+    private treeStage() {
         const plants = useGameStore.getState().game.plants;
         const total = Object.values(plants).reduce((a, b) => a + b, 0);
-        const stage = 0.5 + 0.5 * Math.min(1, Math.log10(1 + total) / Math.log10(400));
-        return stage;
+        return 0.55 + 0.45 * Math.min(1, Math.log10(1 + total) / Math.log10(400));
     }
 
     private layoutTree() {
         const v = this.viewport;
-        const crowned = useGameStore.getState().game.plants.worldtree > 0;
-        if (!this.heartTexture || this.heartTexture.crowned !== crowned) {
-            this.heartTexture = { crowned, painted: paintHeartTree(crowned) };
-            this.tree.texture = this.heartTexture.painted.texture;
-            this.treeGlows.forEach((g) => g.sprite.destroy());
-            this.treeGlows = this.heartTexture.painted.glows.map((g, i) => {
-                const s = new Sprite(this.tex.glow);
-                s.anchor.set(0.5);
-                s.blendMode = 'add';
-                s.tint = g.color;
-                return { sprite: s, base: g.r / 64, phase: i * 1.7 };
-            });
+        const height = v.h * 0.36 * this.treeStage();
+        const s = height / this.heart.height;
+        this.treeBaseScale = s;
+        const x = v.x + v.w * 0.5;
+        const y = v.y + v.h * 0.9;
+        for (const sprite of [this.trunk, this.crown]) {
+            sprite.scale.set(s);
+            sprite.position.set(x, y);
+            sprite.zIndex = y;
         }
-        const painted = this.heartTexture.painted;
-        const height = v.h * 0.62 * this.treeScale();
-        const scale = height / painted.height;
-        this.treeBaseScale = scale;
-        this.tree.scale.set(scale);
-        this.tree.position.set(v.x + v.w * 0.5, v.y + v.h * 0.9);
-        this.tree.zIndex = this.tree.y;
-        if (!this.tree.parent) this.garden.addChild(this.treeAura, this.tree, this.visitor);
-        this.treeAura.position.set(this.tree.x, this.tree.y - height * 0.68);
-        this.treeAura.scale.set((height * 2.6) / 128);
-        this.treeAura.zIndex = this.tree.y - 1;
-        this.visitor.zIndex = this.tree.y + 1;
-        this.treeGlows.forEach((g, i) => {
-            const anchor = painted.glows[i];
-            g.sprite.position.set(this.tree.x + anchor.x * scale, this.tree.y + anchor.y * scale);
-            g.sprite.zIndex = this.tree.y + 0.5;
-            g.base = (anchor.r * scale * 1.5) / 128;
-            if (!g.sprite.parent) this.garden.addChild(g.sprite);
-        });
+        this.crown.zIndex = y + 0.1;
+        this.treeAura.position.set(x, y - height * 0.66);
+        this.treeAura.scale.set((height * 2.2) / 128);
+        this.treeAura.zIndex = y - 1;
+        this.visitor.zIndex = y + 1;
     }
 
     private layoutGrass() {
         this.grass.removeChildren().forEach((c) => c.destroy());
         const v = this.viewport;
         const rand = mulberry(77);
-        const count = this.q.grass;
-        for (let i = 0; i < count; i++) {
+        for (let i = 0; i < this.q.grass; i++) {
             const s = new Sprite(this.tex.grass[i % 3]);
             s.anchor.set(0.5, 1);
-            const t = (i + rand() * 0.8) / count;
+            const t = (i + rand() * 0.8) / this.q.grass;
             s.x = v.x - v.w * 0.05 + t * v.w * 1.1;
-            s.y = v.y + v.h * (1.02 + rand() * 0.03);
-            const sc = (v.h / 760) * (0.7 + rand() * 0.5);
+            s.y = v.y + v.h * (1.01 + rand() * 0.03);
+            const sc = (v.h / 820) * (0.7 + rand() * 0.5);
             s.scale.set(sc * (rand() > 0.5 ? 1 : -1), sc);
             (s as Sprite & { phase?: number }).phase = rand() * 10;
             this.grass.addChild(s);
@@ -425,18 +402,16 @@ export class GardenScene {
     private slotPosition(id: PlantId, slot: number) {
         const index = PLANTS.findIndex((p) => p.id === id);
         const rand = mulberry(index * 1000 + slot * 37 + 5);
-        let x = 0.04 + rand() * 0.92;
-        const big = PLANT_SCALE[id] >= 0.78;
-        // Keep the heart tree clear; big trees go to the sides.
-        if (x > 0.36 && x < 0.64) x = x < 0.5 ? x - 0.26 : x + 0.26;
-        if (big && x > 0.25 && x < 0.75) x = x < 0.5 ? x - 0.18 : x + 0.18;
-        const depth = big ? rand() * 0.45 : 0.2 + rand() * 0.8;
-        return { x: Math.min(0.98, Math.max(0.02, x)), depth };
+        let x = 0.1 + rand() * 0.8;
+        if (x > 0.38 && x < 0.62) x = x < 0.5 ? x - 0.22 : x + 0.22;
+        const big = PLANT_SCALE[id] >= 0.66;
+        const depth = big ? rand() * 0.4 : 0.3 + rand() * 0.7;
+        return { x: Math.min(0.9, Math.max(0.1, x)), depth };
     }
 
     private desiredCount(level: number) {
         if (level <= 0) return 0;
-        return Math.min(this.q.perPlant, 1 + Math.floor(Math.log2(level) * 1.2));
+        return Math.min(this.q.perPlant, 1 + Math.floor(Math.log10(level) * 1.5));
     }
 
     private syncPlants(silent = false) {
@@ -459,7 +434,6 @@ export class GardenScene {
         const sprite = new Sprite(painted.texture);
         sprite.anchor.set(0.5, 1);
         root.addChild(sprite);
-        const ethereal = PLANTS.find((p) => p.id === id)!.essence === 'ethereal';
         const glows = painted.glows.map((g, i) => {
             const s = new Sprite(this.tex.glow);
             s.anchor.set(0.5);
@@ -467,20 +441,9 @@ export class GardenScene {
             s.tint = g.color;
             s.position.set(g.x, g.y);
             root.addChild(s);
-            return { sprite: s, base: (g.r * 2.4) / 128, phase: i * 1.3 + slot };
+            return { sprite: s, base: (g.r * 1.6) / 128, phase: i * 1.3 + slot };
         });
-        const inst: PlantInstance = {
-            id,
-            slot,
-            root,
-            sprite,
-            glows,
-            phase: slot * 1.7 + id.length,
-            born: silent ? -10 : this.time,
-            depth: 0,
-            ethereal,
-        };
-        this.instances.push(inst);
+        this.instances.push({ id, slot, root, sprite, glows, phase: slot * 1.7 + id.length, born: silent ? -10 : this.time, depth: 0 });
         this.garden.addChild(root);
     }
 
@@ -495,53 +458,49 @@ export class GardenScene {
             const { x, depth } = this.slotPosition(inst.id, inst.slot);
             inst.depth = depth;
             const px = v.x + x * v.w;
-            const py = v.y + v.h * (0.8 + depth * 0.17);
-            const base = (v.h / 900) * PLANT_SCALE[inst.id] * (0.65 + depth * 0.55);
+            const py = v.y + v.h * (0.83 + depth * 0.13);
+            const base = (v.h / 1000) * PLANT_SCALE[inst.id] * (0.7 + depth * 0.4);
             inst.root.position.set(px, py);
             inst.root.scale.set(base * (inst.slot % 2 ? -1 : 1), base);
             inst.root.zIndex = py;
         }
     }
 
-    private instanceFor(id: PlantId) {
-        const list = this.instances.filter((i) => i.id === id);
-        return list.sort((a, b) => b.born - a.born)[0];
+    private newestInstance(id: PlantId) {
+        return this.instances.filter((i) => i.id === id).sort((a, b) => b.born - a.born)[0];
     }
 
-    // ------------------------------------------------------------ fx
+    // ------------------------------------------------------------ fx (calm, understated)
 
     private onFx(e: FxEvent) {
         if (!this.app) return;
         switch (e.type) {
             case 'gather':
-                this.burst(e.x, e.y, 9, [0x7ff0c0, 0xffd98a, 0xa9e8ff], 200, 0.45);
-                this.homing(e.x, e.y, 3);
-                this.treePulse = 1;
+                this.ripple(e.x, e.y, 0xffffff, this.viewport.h * 0.08, 0.55);
+                this.motes(e.x, e.y, 4, 0xfff6e0);
+                this.homing(e.x, e.y, 2);
+                this.treePulse = Math.max(this.treePulse, 0.5);
                 break;
             case 'plantBought': {
                 this.syncPlants();
-                const inst = this.instanceFor(e.id);
+                const inst = this.newestInstance(e.id);
                 if (inst) {
                     const tip = inst.root.toGlobal({ x: 0, y: -inst.sprite.height * 0.5 });
-                    this.burst(tip.x, tip.y, 18, [0xb6ffcf, 0xffffff, inst.ethereal ? 0xb49cff : 0xffd27a], 180);
-                    this.rise(tip.x, tip.y, 6, inst.ethereal ? 0xc7b6ff : 0xffe2a0);
+                    this.motes(tip.x, tip.y, 8, 0xfff6e0);
                 }
                 this.layoutTree();
                 break;
             }
             case 'upgradeBought':
             case 'perkBought':
-                this.rise(this.tree.x, this.tree.y - this.tree.height * 0.5, 14, 0xffe7a8);
+                this.motes(this.crown.x, this.crown.y - this.crown.height * 0.6, 10, 0xfff1d0);
                 this.treePulse = 1;
                 break;
             case 'ritual': {
-                const color = RITUAL_COLORS[e.id] ?? 0xffffff;
-                const cx = this.tree.x;
-                const cy = this.tree.y - this.tree.height * 0.45;
-                this.ring(cx, cy, color, this.viewport.h * 1.1);
-                this.burst(cx, cy, 30, [color, 0xffffff], 320);
-                if (e.id === 'drums') this.shake = 1;
-                if (e.id === 'offering') this.rise(cx, this.viewport.y + this.viewport.h, 30, 0xfff1c2);
+                const cx = this.crown.x;
+                const cy = this.crown.y - this.crown.height * 0.55;
+                this.ripple(cx, cy, 0xffffff, this.viewport.h * 0.9, 0.4);
+                this.motes(cx, cy, 16, 0xfff6e0);
                 this.treePulse = 1;
                 break;
             }
@@ -550,38 +509,37 @@ export class GardenScene {
                 this.startTransition(e.id);
                 break;
             case 'newCycle':
-                this.flashTo(0xffffff, 1);
+                this.flashTo(0xffffff, 0.9);
                 this.syncPlants(true);
                 this.layoutTree();
-                break;
-            case 'signal':
-                if (e.signal.type === 'achievement') {
-                    this.rise(this.tree.x, this.tree.y - this.tree.height * 0.6, 10, 0xffe39a);
-                }
                 break;
             default:
                 break;
         }
     }
 
-    private burst(x: number, y: number, count: number, colors: number[], speed: number, scale = 1) {
+    private ripple(x: number, y: number, color: number, diameter: number, alpha: number) {
+        const n = this.reducedMotion ? 0 : 1;
+        for (let i = 0; i < n; i++) {
+            this.fxLayer.spawn(this.tex.ring, { x, y, maxLife: 1.2, size: diameter / 256, alpha, behaviour: behaviours.ring }, color, 'normal');
+        }
+    }
+
+    private motes(x: number, y: number, count: number, color: number) {
         const n = this.reducedMotion ? Math.ceil(count / 3) : count;
         for (let i = 0; i < n; i++) {
-            const a = Math.random() * Math.PI * 2;
-            const v = speed * (0.35 + Math.random() * 0.65);
             this.fxLayer.spawn(
                 this.tex.spark,
                 {
-                    x,
-                    y,
-                    vx: Math.cos(a) * v,
-                    vy: Math.sin(a) * v - speed * 0.2,
-                    maxLife: 0.6 + Math.random() * 0.6,
-                    size: (0.25 + Math.random() * 0.4) * scale,
-                    alpha: 0.85,
-                    behaviour: behaviours.burst,
+                    x: x + (Math.random() - 0.5) * this.viewport.h * 0.08,
+                    y: y + (Math.random() - 0.5) * this.viewport.h * 0.05,
+                    vy: -18 - Math.random() * 30,
+                    maxLife: 1.6 + Math.random() * 1.4,
+                    size: 0.12 + Math.random() * 0.14,
+                    alpha: 0.75,
+                    behaviour: behaviours.rise,
                 },
-                colors[i % colors.length],
+                color,
             );
         }
     }
@@ -590,47 +548,22 @@ export class GardenScene {
         for (let i = 0; i < count; i++) {
             const a = Math.random() * Math.PI * 2;
             this.fxLayer.spawn(
-                this.tex.glow,
+                this.tex.spark,
                 {
                     x,
                     y,
-                    vx: Math.cos(a) * 260,
-                    vy: Math.sin(a) * 260 - 120,
+                    vx: Math.cos(a) * 160,
+                    vy: Math.sin(a) * 160 - 80,
                     tx: this.chiTarget.x,
                     ty: this.chiTarget.y,
-                    maxLife: 1.1 + Math.random() * 0.4,
-                    size: 0.13,
-                    alpha: 0.8,
+                    maxLife: 1.2,
+                    size: 0.22,
+                    alpha: 0.7,
                     behaviour: behaviours.homing,
                 },
-                0x9ff7d2,
+                0xe8fff4,
             );
         }
-    }
-
-    private rise(x: number, y: number, count: number, color: number) {
-        for (let i = 0; i < count; i++) {
-            this.fxLayer.spawn(
-                this.tex.spark,
-                {
-                    x: x + (Math.random() - 0.5) * this.viewport.h * 0.3,
-                    y: y + (Math.random() - 0.5) * this.viewport.h * 0.18,
-                    vy: -40 - Math.random() * 80,
-                    maxLife: 1.4 + Math.random() * 1.2,
-                    size: 0.3 + Math.random() * 0.5,
-                    behaviour: behaviours.rise,
-                },
-                color,
-            );
-        }
-    }
-
-    private ring(x: number, y: number, color: number, diameter: number) {
-        this.fxLayer.spawn(
-            this.tex.ring,
-            { x, y, maxLife: 1.4, size: diameter / 256, alpha: 0.8, behaviour: behaviours.ring },
-            color,
-        );
     }
 
     private flashTo(color: number, strength: number) {
@@ -645,98 +578,33 @@ export class GardenScene {
 
     // ------------------------------------------------------------ frame
 
-    /** dt: simulation-smoothed step; realDt: wall clock step for UI-timed transitions. */
     private frame(dt: number, realDt: number) {
         if (!this.app || this.destroyed) return;
         this.time += dt;
         const store = useGameStore.getState();
         const game = store.game;
         const lag = Math.min(1, (performance.now() - store.tickedAt) / 1000);
-        const worldTime = game.worldTime + lag;
-        const day = getDayInfo(worldTime);
+        const day = getDayInfo(game.worldTime + lag);
         const v = this.viewport;
+        const motion = this.reducedMotion ? 0 : 1;
 
-        // Zone transition: fog flash, swap terrain at the peak.
+        // Zone change: the world dissolves into haze and re-forms.
         if (!this.transition.active && game.zone !== this.zone) this.startTransition(game.zone);
         if (this.transition.active) {
             this.transition.t += realDt;
             const t = this.transition.t;
-            if (!this.transition.swapped && t >= 0.55) {
+            if (!this.transition.swapped && t >= 0.7) {
                 this.zone = this.transition.next;
-                this.landscape.build(ZONE_GRADES[this.zone].terrain, this.zoneSeed(this.zone));
-                this.rebuildLandscapeOrder();
+                this.buildTerrain();
                 this.layout();
                 this.transition.swapped = true;
             }
-            const a = t < 0.55 ? t / 0.55 : Math.max(0, 1 - (t - 0.55) / 1.1);
-            this.flash.tint = this.palette ? this.palette.fog : 0xffffff;
-            this.flash.alpha = a;
-            if (t > 1.7) this.transition.active = false;
+            this.flash.tint = this.palette ? this.palette.haze : 0xffffff;
+            this.flash.alpha = t < 0.7 ? t / 0.7 : Math.max(0, 1 - (t - 0.7) / 1.3);
+            if (t > 2) this.transition.active = false;
         } else if (this.flash.alpha > 0) {
-            this.flash.alpha = Math.max(0, this.flash.alpha - realDt * 1.2);
+            this.flash.alpha = Math.max(0, this.flash.alpha - realDt);
         }
-
-        // Weather intensities ease towards the active kind.
-        for (const kind of Object.keys(this.weather) as WeatherKind[]) {
-            this.weather[kind] = smooth(this.weather[kind], game.weather.kind === kind ? 1 : 0, 0.8, dt);
-        }
-
-        const grade = ZONE_GRADES[this.zone];
-        const balanceTilt = (game.balance - 50) / 50;
-        const palette = gradePalette({ phase: day.phase, zone: grade, weather: this.weather, balanceTilt });
-        this.palette = palette;
-
-        // Parallax.
-        const motion = this.reducedMotion ? 0 : 1;
-        this.pointer.sx = smooth(this.pointer.sx, this.pointer.x * motion, 2, dt);
-        this.pointer.sy = smooth(this.pointer.sy, this.pointer.y * motion, 2, dt);
-        const drift = Math.sin(this.time * 0.05) * 0.3 * motion;
-        const px = this.pointer.sx + drift;
-        const py = this.pointer.sy;
-
-        // Sun & moon.
-        const horizonUv = (v.y + v.h * 0.64) / this.height;
-        const isMoon = day.elevation < 0;
-        const arcT = isMoon ? (day.phase - 0.5) / 0.5 : day.phase / 0.5;
-        const sunX = 0.08 + 0.84 * arcT;
-        const arcHeight = Math.sin(arcT * Math.PI);
-        const sunY = horizonUv + 0.03 - arcHeight * (horizonUv * 0.78);
-        const stars = Math.min(1, Math.max(0, (-day.elevation + 0.05) * 2.5));
-        const clouds =
-            0.22 * this.weather.clear + 0.95 * this.weather.rain + 0.55 * this.weather.mist + 0.08 * this.weather.aurora;
-        const aurora = Math.min(1, this.weather.aurora + grade.aurora * stars);
-        this.sky.update({
-            palette,
-            sunX,
-            sunY,
-            moon: isMoon ? 1 : 0,
-            stars: stars * (1 - this.weather.rain * 0.8),
-            aurora,
-            clouds,
-            horizonY: horizonUv,
-            time: this.time,
-            parallaxX: px,
-            parallaxY: py,
-        });
-
-        // Landscape tints + parallax.
-        const layerColors = [palette.far, palette.mid, palette.near];
-        this.landscape.layers.forEach((layer, i) => {
-            layer.view.tint = layerColors[i];
-            layer.view.x = -px * layer.spec.depth * 28;
-            layer.view.y = -py * layer.spec.depth * 8;
-            const band = this.fogBands[i];
-            band.tint = palette.fog;
-            band.alpha = (0.16 + 0.4 * this.weather.mist + 0.2 * this.weather.rain) * (1 - i * 0.3);
-            band.x = -this.width * 0.15 + layer.view.x;
-        });
-        this.mist.forEach((m, i) => {
-            m.tint = palette.fog;
-            m.alpha = smooth(m.alpha, 0.05 + 0.7 * this.weather.mist + 0.2 * this.weather.rain, 1, dt);
-            m.tilePosition.x += dt * (12 + i * 8) * (motion || 0.3);
-        });
-        this.groundShade.tint = palette.ground;
-        this.groundShade.alpha = 0.85;
 
         if (game.plants !== this.lastPlants) {
             this.lastPlants = game.plants;
@@ -744,118 +612,189 @@ export class GardenScene {
             this.layoutTree();
         }
 
-        // Heart tree.
-        this.treePulse = Math.max(0, this.treePulse - dt * 2.5);
-        const sway = Math.sin(this.time * 0.6) * 0.012 * (1 + this.weather.rain) * (motion || 0.3);
-        const pulse = 1 + this.treePulse * 0.035;
-        this.tree.skew.x = sway;
-        this.tree.tint = palette.light;
-        this.tree.scale.set(this.treeBaseScale * pulse);
-        const harmony = store.rates.harmony;
-        const auraColor = mix(mix(0xffd27a, 0xb49cff, (balanceTilt + 1) / 2), 0xffffff, harmony * 0.5);
-        this.treeAura.tint = auraColor;
+        for (const kind of Object.keys(this.weather) as WeatherKind[]) {
+            this.weather[kind] = smooth(this.weather[kind], game.weather.kind === kind ? 1 : 0, 0.6, dt);
+        }
+        const balanceTilt = (game.balance - 50) / 50;
+        const p = scenePalette({
+            zone: this.zone,
+            daylight: day.daylight,
+            elevation: day.elevation,
+            weather: this.weather,
+            balanceTilt,
+        });
+        this.palette = p;
         const night = 1 - day.daylight;
-        this.treeAura.alpha = (0.05 + 0.13 * harmony) * (0.4 + 0.6 * night) + this.treePulse * 0.12;
-        this.treeGlows.forEach((g) => {
-            const p = 0.5 + 0.5 * Math.sin(this.time * 1.4 + g.phase);
-            g.sprite.alpha = (0.12 + 0.4 * night) * (0.5 + 0.5 * p);
-            g.sprite.scale.set(g.base * (0.85 + 0.3 * p));
+
+        // Parallax: gentle pointer response plus a slow idle drift.
+        this.pointer.sx = smooth(this.pointer.sx, this.pointer.x * motion, 1.5, dt);
+        this.pointer.sy = smooth(this.pointer.sy, this.pointer.y * motion, 1.5, dt);
+        const px = this.pointer.sx + Math.sin(this.time * 0.04) * 0.25 * motion;
+        const py = this.pointer.sy;
+
+        // Sun and moon travel across the composition.
+        const horizonUv = (v.y + v.h * 0.64) / this.height;
+        const isMoon = day.elevation < 0;
+        const arcT = isMoon ? (day.phase - 0.5) / 0.5 : day.phase / 0.5;
+        const sunX = (v.x + v.w * (0.12 + 0.76 * arcT)) / this.width;
+        const sunY = horizonUv + 0.04 - Math.sin(arcT * Math.PI) * horizonUv * 0.72;
+        const stars = Math.min(1, Math.max(0, (-day.elevation + 0.05) * 2.5));
+        const zoneAurora = this.zone === 'aurora' ? 0.75 : this.zone === 'dreamworld' ? 0.2 : 0;
+        this.sky.update({
+            palette: p,
+            sunX,
+            sunY,
+            moon: isMoon ? 1 : 0,
+            stars: stars * (1 - this.weather.rain * 0.85),
+            aurora: Math.min(0.85, this.weather.aurora * 0.8 + zoneAurora * stars),
+            clouds: 0.3 * this.weather.clear + 0.9 * this.weather.rain + 0.55 * this.weather.mist + 0.1 * this.weather.aurora,
+            horizonY: horizonUv,
+            time: this.time,
+            parallaxX: px,
+            parallaxY: py,
         });
 
-        // Visitor wisp while an event waits.
-        const visitorTarget = game.activeEvent ? 1 : 0;
-        this.visitor.alpha = smooth(this.visitor.alpha, visitorTarget * 0.9, 2, dt);
-        if (this.visitor.alpha > 0.01) {
-            const r = this.tree.height * 0.35;
-            this.visitor.position.set(
-                this.tree.x + Math.cos(this.time * 0.8) * r,
-                this.tree.y - this.tree.height * 0.6 + Math.sin(this.time * 1.6) * r * 0.25,
-            );
-            this.visitor.tint = 0xbfffe9;
-            this.visitor.scale.set(0.35 + 0.08 * Math.sin(this.time * 3));
-            if (Math.random() < dt * 20 * this.visitor.alpha) {
-                this.fxLayer.spawn(
-                    this.tex.spark,
-                    { x: this.visitor.x, y: this.visitor.y, vy: -10, maxLife: 1.2, size: 0.3, behaviour: behaviours.rise },
-                    0xbfffe9,
-                );
+        // Landscape layers: colour from atmospheric perspective, parallax, idle motion.
+        const frameTone = mix(p.deep, 0x000000, 0.35);
+        for (const layer of this.terrain.layers) {
+            const g = layer.view;
+            switch (layer.role) {
+                case 'land':
+                    g.tint = layerColor(p, layer.depth, this.weather.mist);
+                    break;
+                case 'frame':
+                    g.tint = frameTone;
+                    break;
+                case 'water':
+                    g.tint = mix(p.water, layerColor(p, layer.depth), 0.25);
+                    break;
+                case 'shimmer':
+                    g.tint = mix(p.water, 0xffffff, 0.45);
+                    g.alpha = 0.25 + 0.2 * Math.sin(this.time * 0.7 + layer.phase);
+                    break;
+                case 'accent':
+                    g.tint = layer.depth < 0.5 ? mix(p.accent, layerColor(p, layer.depth), 0.25) : scale(p.accent, 0.85 + 0.15 * day.daylight);
+                    break;
+                case 'waterfall':
+                    g.tint = mix(p.water, 0xffffff, 0.25);
+                    g.alpha = 0.85 + 0.1 * Math.sin(this.time * 3);
+                    break;
+                case 'glow':
+                    g.tint = this.zone === 'aurora' ? p.accent : mix(p.sun, p.skyBottom, 0.3);
+                    g.alpha = this.zone === 'aurora' ? 0.55 + 0.35 * Math.sin(this.time * 0.9) : 0.9;
+                    break;
             }
+            g.x = -px * layer.parallax * 22;
+            g.y = -py * layer.parallax * 6 + (layer.anim === 'bob' ? Math.sin(this.time * 0.35 + layer.phase) * v.h * 0.008 * (motion || 0.3) : 0);
+            const band = this.fogBands.get(layer);
+            if (band) {
+                band.tint = p.haze;
+                band.alpha = (0.55 - layer.depth * 0.45) + 0.25 * this.weather.mist + 0.15 * this.weather.rain;
+                band.x = -this.width * 0.2 + g.x;
+            }
+        }
+        this.mist.forEach((m, i) => {
+            m.tint = mix(p.haze, 0xffffff, 0.2);
+            m.alpha = smooth(m.alpha, 0.04 + 0.6 * this.weather.mist + 0.15 * this.weather.rain, 0.8, dt);
+            m.tilePosition.x += dt * (6 + i * 5) * (motion || 0.3);
+        });
+        if (this.sunGlint.visible) {
+            const water = this.terrain.layers.find((l) => l.role === 'water');
+            this.sunGlint.x = sunX * this.width - px * 9;
+            this.sunGlint.y = v.y + v.h * 0.705;
+            this.sunGlint.width = v.h * 0.035;
+            this.sunGlint.height = v.h * 0.09;
+            this.sunGlint.tint = p.sun;
+            this.sunGlint.alpha = water ? (0.12 + 0.18 * day.daylight) * (1 - this.weather.rain) * (0.8 + 0.2 * Math.sin(this.time * 1.3)) : 0;
         }
 
-        // Plants: ambient light, sway, glow pulse, pop-in.
+        // Tree of life.
+        this.treePulse = Math.max(0, this.treePulse - dt * 1.5);
+        const crowned = game.plants.worldtree > 0;
+        const sway = Math.sin(this.time * 0.5) * 0.008 * (1 + this.weather.rain) * (motion || 0.3);
+        const pulse = 1 + this.treePulse * 0.02;
+        this.trunk.tint = mix(mix(p.deep, p.foliage, 0.35), 0xffffff, 0.15);
+        this.crown.tint = crowned ? mix(p.foliage, p.accent, 0.35) : p.foliage;
+        this.crown.skew.x = sway;
+        this.crown.scale.set(this.treeBaseScale * pulse);
+        this.trunk.scale.set(this.treeBaseScale);
+        this.treeAura.tint = mix(p.sun, 0xffffff, 0.3);
+        this.treeAura.alpha = (crowned ? 0.12 : 0.05) * (0.4 + 0.6 * night) + this.treePulse * 0.08;
+
+        // Visitor: a soft wisp circles the tree while a spirit waits.
+        this.visitor.alpha = smooth(this.visitor.alpha, game.activeEvent ? 0.7 : 0, 1.5, dt);
+        if (this.visitor.alpha > 0.01) {
+            const r = this.crown.height * 0.4;
+            this.visitor.position.set(
+                this.crown.x + Math.cos(this.time * 0.6) * r,
+                this.crown.y - this.crown.height * 0.62 + Math.sin(this.time * 1.2) * r * 0.25,
+            );
+            this.visitor.tint = 0xf0fff8;
+            this.visitor.scale.set(0.22 + 0.04 * Math.sin(this.time * 2));
+        }
+
+        // Plants and grass.
         for (const inst of this.instances) {
-            inst.sprite.tint = palette.light;
+            // Plants take on the zone's atmosphere; far ones sink further into the haze.
+            inst.sprite.tint = mix(p.light, p.haze, 0.3 + (1 - inst.depth) * 0.15);
             const age = this.time - inst.born;
-            const grow = age < 0.9 ? this.elastic(age / 0.9) : 1;
+            const grow = age < 1.2 ? this.easeOutBack(age / 1.2) : 1;
             inst.sprite.scale.set(grow);
-            inst.sprite.skew.x =
-                Math.sin(this.time * (0.9 + inst.depth * 0.4) + inst.phase) * 0.05 * (1 + this.weather.rain * 1.5) * (motion || 0.3);
+            inst.sprite.skew.x = Math.sin(this.time * (0.7 + inst.depth * 0.3) + inst.phase) * 0.03 * (1 + this.weather.rain) * (motion || 0.3);
             for (const g of inst.glows) {
-                const p = 0.5 + 0.5 * Math.sin(this.time * 1.8 + g.phase);
-                g.sprite.alpha = (inst.ethereal ? 0.35 + 0.65 * night : 0.15 + 0.5 * night) * (0.45 + 0.55 * p) * grow;
-                g.sprite.scale.set(g.base * (0.8 + 0.35 * p));
+                const k = 0.5 + 0.5 * Math.sin(this.time * 1.2 + g.phase);
+                g.sprite.alpha = 0.35 * night * (0.5 + 0.5 * k) * grow;
+                g.sprite.scale.set(g.base * (0.85 + 0.2 * k));
             }
         }
+        const grassTone = mix(p.deep, p.ground, 0.25);
         for (const child of this.grass.children) {
             const s = child as Sprite & { phase?: number };
-            s.tint = mix(palette.near, palette.light, 0.25);
-            s.skew.x = Math.sin(this.time * 1.3 + (s.phase ?? 0)) * 0.12 * (1 + this.weather.rain) * (motion || 0.3);
+            s.tint = grassTone;
+            s.skew.x = Math.sin(this.time * 1.1 + (s.phase ?? 0)) * 0.08 * (1 + this.weather.rain) * (motion || 0.3);
         }
 
-        this.spawnAmbient(dt, day.daylight, palette);
-
-        // Camera shake for drums.
-        if (this.shake > 0) {
-            this.shake = Math.max(0, this.shake - dt * 2);
-            const s = this.shake * 6 * motion;
-            this.world.position.set((Math.random() - 0.5) * s, (Math.random() - 0.5) * s);
-        } else {
-            this.world.position.set(0, 0);
-        }
-
+        this.spawnAmbient(dt, day.daylight, p);
         this.ambient.update(dt, this.time);
         this.fxLayer.update(dt, this.time);
         this.weatherLayer.update(dt, this.time);
     }
 
-    private treeBaseScale = 1;
-
-    private elastic(t: number) {
-        if (t <= 0) return 0;
-        if (t >= 1) return 1;
-        return Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * ((2 * Math.PI) / 3)) + 1;
+    private easeOutBack(t: number) {
+        const c1 = 1.2;
+        const c3 = c1 + 1;
+        return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
     }
 
-    private spawnAmbient(dt: number, daylight: number, palette: Palette) {
+    private spawnAmbient(dt: number, daylight: number, p: Palette) {
         const v = this.viewport;
         const motionScale = this.reducedMotion ? 0.3 : 1;
-        const rates = useGameStore.getState().rates;
-        const etherealShare = rates.physicalRaw + rates.etherealRaw > 0 ? rates.etherealRaw / (rates.physicalRaw + rates.etherealRaw) : 0.3;
-
-        // Fireflies at night, more with a dreamy garden.
         const night = 1 - daylight;
-        const fireflyTarget = this.q.fireflies * night * (0.5 + etherealShare) * motionScale;
-        this.spawnAcc.firefly += dt * fireflyTarget * 0.25;
-        while (this.spawnAcc.firefly > 1 && this.ambient.count < fireflyTarget + 4) {
+
+        // Fireflies: few, small and slow.
+        const fireflyTarget = 10 * night * motionScale * (this.zone === 'desert' ? 0.3 : 1);
+        this.spawnAcc.firefly += dt * fireflyTarget * 0.2;
+        while (this.spawnAcc.firefly > 1 && this.ambient.count < fireflyTarget + 3) {
             this.spawnAcc.firefly -= 1;
             this.ambient.spawn(
-                this.tex.glow,
+                this.tex.spark,
                 {
                     x: v.x + Math.random() * v.w,
-                    y: v.y + v.h * (0.55 + Math.random() * 0.42),
-                    vx: (Math.random() - 0.5) * 20,
-                    vy: (Math.random() - 0.5) * 10,
-                    maxLife: 6 + Math.random() * 6,
-                    size: 0.1 + Math.random() * 0.08,
+                    y: v.y + v.h * (0.6 + Math.random() * 0.35),
+                    vx: (Math.random() - 0.5) * 10,
+                    vy: (Math.random() - 0.5) * 6,
+                    maxLife: 7 + Math.random() * 6,
+                    size: 0.14 + Math.random() * 0.08,
+                    alpha: 0.8,
                     behaviour: behaviours.firefly,
                 },
-                Math.random() > etherealShare ? 0xe8ff9a : 0x9ff4ff,
+                this.zone === 'aurora' ? p.accent : 0xf3f0c0,
             );
         }
         if (this.spawnAcc.firefly > 1) this.spawnAcc.firefly = 1;
 
-        // Pollen / dust motes by day.
-        this.spawnAcc.mote += dt * 3 * daylight * motionScale * (1 - this.weather.rain);
+        // Dust motes drifting in the light.
+        this.spawnAcc.mote += dt * 1.4 * daylight * motionScale * (1 - this.weather.rain);
         while (this.spawnAcc.mote > 1) {
             this.spawnAcc.mote -= 1;
             this.ambient.spawn(
@@ -863,60 +802,85 @@ export class GardenScene {
                 {
                     x: v.x + Math.random() * v.w,
                     y: v.y + v.h * (0.3 + Math.random() * 0.6),
-                    vx: 8 + Math.random() * 10,
-                    vy: -4 - Math.random() * 6,
-                    maxLife: 5 + Math.random() * 5,
-                    size: 0.12 + Math.random() * 0.12,
-                    alpha: 0.6,
+                    vx: 5 + Math.random() * 6,
+                    vy: -2 - Math.random() * 4,
+                    maxLife: 6 + Math.random() * 5,
+                    size: 0.08 + Math.random() * 0.08,
+                    alpha: 0.35,
                     behaviour: behaviours.mote,
                 },
-                mix(palette.accent, 0xffffff, 0.5),
+                mix(p.sun, 0xffffff, 0.5),
             );
         }
 
-        // Falling leaves.
-        this.spawnAcc.leaf += dt * 0.35 * motionScale * (1 + this.weather.rain);
-        while (this.spawnAcc.leaf > 1) {
-            this.spawnAcc.leaf -= 1;
-            this.ambient.spawn(
-                this.tex.leaf,
-                {
-                    x: v.x + Math.random() * v.w,
-                    y: v.y + v.h * 0.3,
-                    vx: 20 + Math.random() * 20,
-                    vy: 25 + Math.random() * 20,
-                    spin: (Math.random() - 0.5) * 3,
-                    maxLife: 8,
-                    size: 0.6 + Math.random() * 0.4,
-                    alpha: 0.85,
-                    behaviour: behaviours.leaf,
-                },
-                mix(mix(0x6fae58, 0xe8b04a, Math.random()), palette.light, 0.3),
-                'normal',
-            );
+        // Leaves (petals in the dreamworld) drift down now and then.
+        if (this.zone !== 'desert') {
+            this.spawnAcc.leaf += dt * 0.18 * motionScale * (1 + this.weather.rain);
+            while (this.spawnAcc.leaf > 1) {
+                this.spawnAcc.leaf -= 1;
+                this.ambient.spawn(
+                    this.tex.leaf,
+                    {
+                        x: v.x + Math.random() * v.w,
+                        y: v.y + v.h * 0.25,
+                        vx: 12 + Math.random() * 12,
+                        vy: 18 + Math.random() * 14,
+                        spin: (Math.random() - 0.5) * 2,
+                        maxLife: 10,
+                        size: 0.55 + Math.random() * 0.35,
+                        alpha: 0.8,
+                        behaviour: behaviours.leaf,
+                    },
+                    this.zone === 'dreamworld' ? p.accent : mix(p.deep, p.foliage, 0.5),
+                    'normal',
+                );
+            }
         }
 
-        // Rain streaks over the whole screen.
+        // Spray at the foot of the waterfall.
+        if (this.terrain.layers.some((l) => l.role === 'waterfall')) {
+            this.spawnAcc.spray += dt * 5 * motionScale;
+            while (this.spawnAcc.spray > 1) {
+                this.spawnAcc.spray -= 1;
+                this.ambient.spawn(
+                    this.tex.spark,
+                    {
+                        x: v.x + v.w * (0.72 + Math.random() * 0.06) - this.pointer.sx * 4,
+                        y: v.y + v.h * 0.73,
+                        vx: (Math.random() - 0.5) * 12,
+                        vy: -10 - Math.random() * 14,
+                        maxLife: 2 + Math.random() * 1.5,
+                        size: 0.3 + Math.random() * 0.3,
+                        alpha: 0.25,
+                        behaviour: behaviours.mote,
+                    },
+                    mix(p.water, 0xffffff, 0.5),
+                    'normal',
+                );
+            }
+        }
+
+        // Rain: thin, quiet streaks.
         const rain = this.weather.rain;
         if (rain > 0.02) {
-            this.spawnAcc.rain += dt * rain * this.q.particles * 0.6;
+            this.spawnAcc.rain += dt * rain * this.q.particles * 0.5;
             while (this.spawnAcc.rain > 1) {
                 this.spawnAcc.rain -= 1;
-                const speed = 900 + Math.random() * 400;
+                const speed = 800 + Math.random() * 300;
                 this.weatherLayer.spawn(
                     this.tex.rain,
                     {
                         x: Math.random() * this.width * 1.2 - this.width * 0.1,
                         y: -40,
-                        vx: -speed * 0.18,
+                        vx: -speed * 0.12,
                         vy: speed,
                         ty: this.height + 20,
                         maxLife: 3,
-                        size: 0.4 + Math.random() * 0.5,
-                        alpha: 0.25 * rain,
+                        size: 0.35 + Math.random() * 0.4,
+                        alpha: 0.18 * rain,
                         behaviour: behaviours.rain,
                     },
-                    mix(palette.fog, 0xffffff, 0.5),
+                    mix(p.haze, 0xffffff, 0.5),
                     'normal',
                 );
             }

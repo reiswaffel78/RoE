@@ -2,9 +2,9 @@
 
 Ein meditatives Idle-Spiel über Balance zwischen **Erde** und **Traum**. Pflege einen lebendigen Garten, halte ihn im Gleichgewicht, vollziehe Rituale, begegne Naturwesen und beginne neue Zyklen mit dem Wissen der Ahnen.
 
-- **Grafik:** vollständig prozedural (kein einziges Bild-Asset): Shader-Himmel mit Tag/Nacht, Sonne, Mond, Sternen, Milchstraße, Wolken und Polarlicht, mehrschichtige Parallax-Landschaft pro Zone, gemalte Pflanzen, Partikel (Glühwürmchen, Pollen, Blätter, Regen) und Bloom.
-- **Audio:** generative WebAudio-Klanglandschaft (Pad folgt Balance und Tageszeit, Wind, Regen, Grillen, Vögel) und synthetisierte Effekte.
-- **UI/UX:** Glass-UI, Desktop-Seitenpanel oder Mobile-Bottom-Sheet, Tooltips mit Zahlen, Kaufmengen (×1/×10/×25/Max) mit Fortschrittsanzeige und Restzeit, Toasts, Tutorial, Tastenkürzel, reduzierte Bewegung, Deutsch und Englisch.
+- **Grafik:** flache, atmosphärische Illustration, vollständig prozedural (kein einziges Bild-Asset). Jede der 6 Zonen hat eine eigene, gedeckte Farbwelt für Tag und Nacht, mehrere Silhouetten-Ebenen mit Dunstperspektive, dunkle Rahmen-Silhouetten im Vordergrund und ein eigenes Motiv (See mit Menhiren, Tafelberge und Felsbogen, Wasserfall, Schneegipfel mit Schrein, Steinkreis mit Leuchtrune, schwebende Inseln). Dazu kommen ein Shader-Himmel mit großer Sonnen- bzw. Mondscheibe, Sternen, Wolkenbändern und Polarlicht sowie Papierkörnung und ruhige Partikel.
+- **Audio:** meditative WebAudio-Klangwelt ohne Audiodateien: atmender Grundton in der Tonart der Zone, Klangschalen mit den unharmonischen Obertönen und der Schwebung echter tibetischer Schalen, Wind, Wasser bzw. Wasserfall, Regen, Grillen und Vögel. Feedback ist bewusst leise: Wassertropfen beim Sammeln, kleine Klangschalen bei Käufen, Windspiele bei Errungenschaften.
+- **UI/UX:** Glass-UI, Pflanzen-Schilder beim Überfahren in der Szene, Desktop-Seitenpanel oder Mobile-Bottom-Sheet, Tooltips mit Zahlen, Kaufmengen (×1/×10/×25/Max) mit Fortschrittsanzeige und Restzeit, Toasts, Tutorial, Tastenkürzel, reduzierte Bewegung, Deutsch und Englisch.
 - **PWA:** offlinefähig (Workbox), Offline-Fortschritt, Export und Import des Spielstands.
 
 ## Schnellstart
@@ -36,7 +36,7 @@ Alle Formeln stehen in `src/core/economy.ts`, alle Stellschrauben in `src/core/c
 
 Die alte Formel `1,5 − b/200` belohnte Extreme. Die neue Glockenkurve belohnt echte Balance, und ein einseitiger Garten driftet messbar aus dem Einklang (siehe Tests).
 
-**Inhalte:** 9 Pflanzen (Erde, Traum, Gleichklang), 4 Zonen mit eigener Landschaft und Wettertabelle, 4 Wetterlagen, Tag/Nacht-Zyklus (10 min), 7 Rituale mit Cooldowns, 51 Upgrades, 7 Naturwesen-Begegnungen mit Wahlmöglichkeiten, 29 Errungenschaften (je +1 %), 9 Ahnen-Pfade, Prestige-Zyklen.
+**Inhalte:** 9 Pflanzen (Erde, Traum, Gleichklang), 6 Zonen (Stiller Hain, Wüste, Regenwald, Gebirge, Polarlichtfelder, Traumwelt) mit eigener Landschaft, Klangwelt und Wettertabelle, 4 Wetterlagen, Tag/Nacht-Zyklus (10 min), 7 Rituale mit Cooldowns, 51 Upgrades, 7 Naturwesen-Begegnungen mit Wahlmöglichkeiten, 29 Errungenschaften (je +1 %), 9 Ahnen-Pfade, Prestige-Zyklen.
 
 **Pacing** (Headless-Bot, `tests/pacing.test.ts`): zweite Pflanze nach etwa 1 min, erste neue Zone nach 10 bis 15 min, erster Zyklus nach 70 bis 85 min. Ein reiner Idle-Spieler ist nur rund 20 % langsamer als ein aktiver.
 
@@ -63,7 +63,7 @@ Der Spielzustand enthält ausschließlich serialisierbare Daten (IDs statt Funkt
 
 ## Qualitätsstufen
 
-In den Einstellungen wählbar (Standard nach Gerätestärke): **Niedrig** (Auflösung 1×, wenige Partikel, kein Film-Grain), **Mittel** (1,5×), **Hoch** (2×, Bloom-Filter). „Bewegung reduzieren“ folgt automatisch der Systemeinstellung.
+In den Einstellungen wählbar (Standard nach Gerätestärke): **Niedrig** (Auflösung 1×, wenige Partikel, kein Film-Grain), **Mittel** (1,5×), **Hoch** (2×, mehr Partikel). „Bewegung reduzieren“ folgt automatisch der Systemeinstellung.
 
 ## Geisterstimme (optional)
 

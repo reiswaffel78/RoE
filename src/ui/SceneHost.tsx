@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { GardenScene, type Viewport } from '../render/scene/GardenScene';
+import { GardenScene, type PlantPick, type Viewport } from '../render/scene/GardenScene';
+
+let activeScene: GardenScene | null = null;
+
+/** Plant under a screen point, for hover labels outside the canvas. */
+export const pickScenePlant = (x: number, y: number): PlantPick | null => activeScene?.pickPlant(x, y) ?? null;
 import { useSettings } from '../store/settingsStore';
 
 interface SceneHostProps {
@@ -32,6 +37,7 @@ export const SceneHost = ({ viewport, chiTarget, onReady }: SceneHostProps) => {
                     return;
                 }
                 sceneRef.current = scene;
+                activeScene = scene;
                 scene.setViewport(viewportRef.current);
                 readyRef.current();
             })
@@ -42,6 +48,7 @@ export const SceneHost = ({ viewport, chiTarget, onReady }: SceneHostProps) => {
             });
         return () => {
             cancelled = true;
+            if (activeScene === sceneRef.current) activeScene = null;
             sceneRef.current?.destroy();
             sceneRef.current = null;
         };

@@ -18,6 +18,8 @@ export const localWhisper = (t: TFunction, game: GameState): string => {
     if (game.balance > 65) pools.push(list('ethereal'), list('ethereal'));
     if (day.night) pools.push(list('night'));
     pools.push(list('generic'));
+    // The zone's own saying.
+    pools.push([t(`zones.${game.zone}.quote`)]);
     return pick(pick(pools));
 };
 

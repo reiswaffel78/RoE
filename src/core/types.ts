@@ -16,7 +16,7 @@ export type PlantId =
     | 'starbloom'
     | 'worldtree';
 
-export type ZoneId = 'grove' | 'meadow' | 'hollow' | 'peaks';
+export type ZoneId = 'grove' | 'desert' | 'rainforest' | 'mountains' | 'aurora' | 'dreamworld';
 
 export interface ActiveBuff {
     id: BuffId;
