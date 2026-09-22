@@ -19,7 +19,14 @@ export interface LoadResult {
 export const loadGame = (now = Date.now()): LoadResult => {
     const store = storage();
     if (!store) return { state: null, source: 'none' };
-    const raw = store.getItem(SAVE_KEY);
+    let raw: string | null = null;
+    let legacy: string | null = null;
+    try {
+        raw = store.getItem(SAVE_KEY);
+        legacy = raw ? null : store.getItem(LEGACY_SAVE_KEY);
+    } catch {
+        return { state: null, source: 'none' };
+    }
     if (raw) {
         try {
             return { state: normalizeState(JSON.parse(raw), now), source: 'v2' };
@@ -27,7 +34,6 @@ export const loadGame = (now = Date.now()): LoadResult => {
             return { state: null, source: 'corrupt' };
         }
     }
-    const legacy = store.getItem(LEGACY_SAVE_KEY);
     if (legacy) {
         try {
             return { state: normalizeState(JSON.parse(legacy), now), source: 'legacy' };
@@ -50,9 +56,13 @@ export const saveGame = (state: GameState): boolean => {
 };
 
 export const clearSave = () => {
-    const store = storage();
-    store?.removeItem(SAVE_KEY);
-    store?.removeItem(LEGACY_SAVE_KEY);
+    try {
+        const store = storage();
+        store?.removeItem(SAVE_KEY);
+        store?.removeItem(LEGACY_SAVE_KEY);
+    } catch {
+        /* storage unavailable */
+    }
 };
 
 // Export format: "ROE2:" + base64(JSON). Base64 keeps copy/paste safe.

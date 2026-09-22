@@ -2,6 +2,8 @@
 // particle effects. Reads the game store every frame (no React involvement)
 // and reacts to fx events for juicy feedback.
 
+// Eval-free code paths: required under strict Content-Security-Policies.
+import 'pixi.js/unsafe-eval';
 import { Application, Container, Sprite, Texture, TilingSprite } from 'pixi.js';
 import { AdvancedBloomFilter } from 'pixi-filters';
 import { PLANTS, getDayInfo, type PlantId, type WeatherKind, type ZoneId } from '../../core';

@@ -3,13 +3,15 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import pkg from './package.json' with { type: 'json' };
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
     base: './',
     define: {
         __APP_VERSION__: JSON.stringify(pkg.version),
     },
     plugins: [
         react(),
+        // The shareable web build (mode "artifact") runs where service workers are not allowed.
+        mode !== 'artifact' &&
         VitePWA({
             registerType: 'autoUpdate',
             injectRegister: false,
@@ -53,4 +55,4 @@ export default defineConfig({
         environment: 'node',
         testTimeout: 120_000,
     },
-});
+}));
